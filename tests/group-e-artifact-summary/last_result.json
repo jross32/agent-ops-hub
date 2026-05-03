@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-05-03T15:31:44.393Z",
+  "runStamp": "2026-05-03_113141",
+  "testFile": "group-e-artifact-summary/test.js",
+  "id": "group-e-artifact-summary",
+  "status": "pass",
+  "durationMs": 9,
+  "notes": "artifact summary produced expected failed-test signal; trend.runsAnalyzed=0",
+  "details": {
+    "summary": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 321
+    },
+    "firstFailedTest": {
+      "name": "failed test",
+      "status": "fail"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-03T15:31:44.385Z",
+  "suite": "fixture-suite",
+  "summary": {
+    "total": 2,
+    "passed": 1,
+    "failed": 1,
+    "skipped": 0,
+    "durationMs": 321
+  },
+  "tests": [
+    {
+      "name": "ok test",
+      "status": "pass"
+    },
+    {
+      "name": "failed test",
+      "status": "fail"
+    }
+  ]
+}

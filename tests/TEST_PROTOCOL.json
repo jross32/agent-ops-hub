@@ -1,0 +1,42 @@
+{
+  "name": "agent-ops-hub test protocol",
+  "version": "1.0.0",
+  "suites": [
+    {
+      "id": "group-a-capabilities",
+      "purpose": "Tool registration and baseline server capability checks"
+    },
+    {
+      "id": "group-b-research",
+      "purpose": "Live URL research extraction checks"
+    },
+    {
+      "id": "group-c-runbooks",
+      "purpose": "Runbook generation integrity checks"
+    },
+    {
+      "id": "group-d-validation-gates",
+      "purpose": "Sequential validation gate execution checks"
+    },
+    {
+      "id": "group-e-artifact-summary",
+      "purpose": "Artifact summarization behavior checks"
+    },
+    {
+      "id": "group-f-agent-mode",
+      "purpose": "Agent-mode readiness and benchmark efficiency checks"
+    }
+  ],
+  "artifacts": {
+    "latestMachine": "tests/logs/latest_ai.json",
+    "latestHuman": "tests/logs/latest_human.md",
+    "runFolder": "tests/logs/runs/{timestamp}",
+    "perTest": "tests/<group>/last_result.json"
+  },
+  "requirements": {
+    "mustPass": true,
+    "stopOnCriticalFailure": false,
+    "recordDurations": true,
+    "recordPerTestArtifacts": true
+  }
+}

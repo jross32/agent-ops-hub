@@ -1,0 +1,164 @@
+{
+  "timestamp": "2026-05-03T15:31:47.588Z",
+  "suite": "agent-ops-hub-all",
+  "server": {
+    "script": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\mcp-server.js",
+    "toolsDiscovered": 11
+  },
+  "environment": {
+    "platform": "win32",
+    "release": "10.0.22631",
+    "node": "v24.14.0"
+  },
+  "summary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 6403
+  },
+  "tests": [
+    {
+      "id": "group-a-capabilities",
+      "status": "pass",
+      "durationMs": 51,
+      "notes": "discovered 11 tools and 4 local MCP folders",
+      "details": {
+        "toolsDiscovered": 11,
+        "localMcpFolderCount": 4
+      }
+    },
+    {
+      "id": "group-b-research",
+      "status": "pass",
+      "durationMs": 359,
+      "notes": "research scanned 2 urls (success=2, errors=0)",
+      "details": {
+        "scanned": 2,
+        "successCount": 2,
+        "errorCount": 0
+      }
+    },
+    {
+      "id": "group-c-runbooks",
+      "status": "pass",
+      "durationMs": 8,
+      "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_113141.json",
+      "details": {
+        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_113141.json",
+        "stepCount": 2
+      }
+    },
+    {
+      "id": "group-d-validation-gates",
+      "status": "pass",
+      "durationMs": 2550,
+      "notes": "validation gate: backward compat pass + severity-level warn-continues behavior verified",
+      "details": {
+        "plainGate": {
+          "attempted": 3,
+          "passed": true
+        },
+        "severityGate": {
+          "attempted": 3,
+          "warnFails": 1
+        }
+      }
+    },
+    {
+      "id": "group-e-artifact-summary",
+      "status": "pass",
+      "durationMs": 9,
+      "notes": "artifact summary produced expected failed-test signal; trend.runsAnalyzed=0",
+      "details": {
+        "summary": {
+          "total": 2,
+          "passed": 1,
+          "failed": 1,
+          "skipped": 0,
+          "durationMs": 321
+        },
+        "firstFailedTest": {
+          "name": "failed test",
+          "status": "fail"
+        }
+      }
+    },
+    {
+      "id": "group-f-agent-mode",
+      "status": "pass",
+      "durationMs": 3151,
+      "notes": "preflight=100, avgBenchmarkMs=1040",
+      "details": {
+        "readinessScore": 100,
+        "benchmark": {
+          "avgDurationMs": 1040,
+          "minDurationMs": 1032,
+          "maxDurationMs": 1047
+        }
+      }
+    },
+    {
+      "id": "group-g-diff-plans",
+      "status": "pass",
+      "durationMs": 13,
+      "notes": "diff found: +1 added, -1 removed, ~1 changed",
+      "details": {
+        "totalChanges": 3,
+        "diff": {
+          "added": [
+            {
+              "index": 2,
+              "id": "step-c",
+              "title": "Step C (new)",
+              "command": "npm list --depth=0",
+              "mustPass": true
+            }
+          ],
+          "removed": [
+            {
+              "index": 2,
+              "id": "step-b",
+              "title": "Step B",
+              "command": "npm --version",
+              "mustPass": true
+            }
+          ],
+          "changed": [
+            {
+              "id": "step-a",
+              "diffs": {
+                "title": {
+                  "from": "Step A",
+                  "to": "Step A Modified"
+                }
+              }
+            }
+          ],
+          "policyDiffs": {}
+        }
+      }
+    },
+    {
+      "id": "group-h-scaffold",
+      "status": "pass",
+      "durationMs": 5,
+      "notes": "scaffold generated (dry) and written to C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\scaffold-test\\group-z-validation\\test.js",
+      "details": {
+        "writtenPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\scaffold-test\\group-z-validation\\test.js",
+        "scaffoldLen": 586
+      }
+    },
+    {
+      "id": "group-i-compare-tools",
+      "status": "pass",
+      "durationMs": 7,
+      "notes": "self: 12 tools identical; cross: +43 in os-bridge, -12 vs agent-ops-hub",
+      "details": {
+        "agentOpsHubTools": 12,
+        "osBridgeAdded": 43,
+        "shared": 0
+      }
+    }
+  ]
+}
