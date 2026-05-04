@@ -1,6 +1,6 @@
 # agent-ops-hub — AI Tool Reference (DOCS.md)
 
-Version: **0.7.0** | Port: **11200** (HTTP) + stdio | Tools: **38** | Prompts: **8**
+Version: **0.8.0** | Port: **11200** (HTTP) + stdio | Tools: **40** | Prompts: **8**
 
 > **For AI agents:** This is your primary orchestration server. Start here to plan tasks, validate work, compare server capabilities, track roadmaps, and analyze test artifacts. Use the prompts to get structured guidance before starting complex workflows.
 
@@ -28,12 +28,14 @@ Version: **0.7.0** | Port: **11200** (HTTP) + stdio | Tools: **38** | Prompts: *
 | Run continuous autonomous loop batches | `orchestrate_continuous_improvement_loop` |
 | Inspect autonomous loop state | `get_autonomous_loop_state` |
 | Pause/resume/trigger autonomous loop | `set_autonomous_loop_control` |
+| Resume loop from checkpoints | `resume_interrupted_cycle` |
+| Score loop quality trends | `evaluate_autonomous_loop_quality` |
 | Check JS file syntax quality | `code_quality_gate` |
 | Get workflow guidance (prompt) | Prompt: `agent_ops_workflow` |
 
 ---
 
-## All 38 Tools
+## All 40 Tools
 
 ### Orchestration & Intelligence
 
@@ -304,6 +306,20 @@ Control loop execution using pause/resume/trigger actions.
 { "action": "pause", "reason": "manual review" }
 ```
 Returns: `{ action, state }`
+
+#### `resume_interrupted_cycle`
+Resume loop execution from persisted checkpoints and run additional cycles.
+```json
+{ "stateDir": "C:/path/loop-state", "cycles": 1, "cadenceMinutes": 10 }
+```
+Returns: `{ status, cyclesRun, totalCycles, nextPulseAt, cycles: [...] }`
+
+#### `evaluate_autonomous_loop_quality`
+Analyze recent loop cycles for quality/cadence indicators and return a quality score.
+```json
+{ "stateDir": "C:/path/loop-state", "lastN": 20 }
+```
+Returns: `{ cyclesAnalyzed, avgIdeasPerCycle, avgIntervalSec, qualityScore, warnings }`
 
 ---
 

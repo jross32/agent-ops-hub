@@ -600,6 +600,32 @@ const TOOLS = [
     }
   },
   {
+    name: 'resume_interrupted_cycle',
+    description: 'Resume autonomous execution from persisted state and run additional cycles',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', description: 'Goal to continue improving (falls back to state goal if omitted)' },
+        stateDir: { type: 'string', description: 'Optional directory for loop state and cycle snapshots' },
+        cycles: { type: 'number', minimum: 1, maximum: 200, description: 'How many additional cycles to run (default 1)' },
+        cadenceMinutes: { type: 'number', minimum: 5, maximum: 1440, description: 'Cadence for subsequent cycles (default from state or 10)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'evaluate_autonomous_loop_quality',
+    description: 'Evaluate loop quality over persisted cycle snapshots (cadence adherence, output volume, and trend indicators)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stateDir: { type: 'string', description: 'Optional directory for loop state and cycle snapshots' },
+        lastN: { type: 'number', minimum: 1, maximum: 500, description: 'How many most recent cycles to evaluate (default 20)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'generate_svg_image',
     description: 'Generate a clean SVG image asset (banner/card/placeholder) for docs, UI mocks, or reports',
     inputSchema: {
@@ -797,7 +823,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.7.0'
+        version: '0.8.0'
       },
       capabilities: {
         tools: {},
@@ -910,6 +936,10 @@ async function runTool(name, args) {
       return getAutonomousLoopState(args);
     case 'set_autonomous_loop_control':
       return setAutonomousLoopControl(args);
+    case 'resume_interrupted_cycle':
+      return resumeInterruptedCycle(args);
+    case 'evaluate_autonomous_loop_quality':
+      return evaluateAutonomousLoopQuality(args);
     case 'generate_svg_image':
       return generateSvgImage(args);
     case 'analyze_image_file':
@@ -2524,6 +2554,92 @@ function setAutonomousLoopControl(args) {
   };
 }
 
+async function resumeInterruptedCycle(args) {
+  const stateDir = normalizeFsPath(args.stateDir || DEFAULT_LOOP_STATE_DIR);
+  const cycles = Number.isFinite(args.cycles) ? Math.floor(args.cycles) : 1;
+  const state = readAutonomousLoopState(stateDir);
+  const goal = String(args.goal || state.goal || '').trim();
+  if (!goal) throw new Error('goal is required (either pass goal or ensure state has one)');
+
+  setAutonomousLoopControl({ action: 'resume', stateDir, reason: 'resume_interrupted_cycle' });
+
+  return orchestrateContinuousImprovementLoop({
+    goal,
+    stateDir,
+    maxCycles: cycles,
+    cadenceMinutes: Number.isFinite(args.cadenceMinutes) ? Math.floor(args.cadenceMinutes) : (state.cadenceMinutes || 10),
+    waitForCadence: false
+  });
+}
+
+function evaluateAutonomousLoopQuality(args) {
+  const stateDir = normalizeFsPath(args.stateDir || DEFAULT_LOOP_STATE_DIR);
+  const lastN = Number.isFinite(args.lastN) ? Math.floor(args.lastN) : 20;
+
+  const cycles = listLoopCycleSnapshots(stateDir).slice(-lastN);
+  const loaded = cycles.map((p) => {
+    try {
+      return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch (_err) {
+      return null;
+    }
+  }).filter(Boolean);
+
+  if (!loaded.length) {
+    return {
+      stateDir,
+      cyclesAnalyzed: 0,
+      qualityScore: 0,
+      warnings: ['No cycle snapshots available for evaluation.']
+    };
+  }
+
+  const ideasPerCycle = loaded.map((c) => safeNumber((c.result && c.result.pulseSummary && c.result.pulseSummary.ideas) || 0) || 0);
+  const avgIdeasPerCycle = Math.round((ideasPerCycle.reduce((a, b) => a + b, 0) / ideasPerCycle.length) * 100) / 100;
+
+  const intervals = [];
+  for (let i = 1; i < loaded.length; i += 1) {
+    const prev = Date.parse(loaded[i - 1].cycleCompletedAt || '');
+    const curr = Date.parse(loaded[i].cycleCompletedAt || '');
+    if (Number.isFinite(prev) && Number.isFinite(curr) && curr > prev) {
+      intervals.push(Math.round((curr - prev) / 1000));
+    }
+  }
+  const avgIntervalSec = intervals.length
+    ? Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length)
+    : null;
+
+  const state = readAutonomousLoopState(stateDir);
+  const warnings = [];
+  if (avgIdeasPerCycle < 1) warnings.push('Very low idea generation per cycle.');
+  if (state.control === 'paused') warnings.push(`Loop is paused${state.pauseReason ? `: ${state.pauseReason}` : ''}.`);
+  if (intervals.length >= 2 && Math.max(...intervals) > Math.min(...intervals) * 3) warnings.push('Cycle interval variance is high.');
+
+  const qualityScore = Math.max(0, Math.min(100,
+    Math.round(
+      40 +
+      Math.min(30, avgIdeasPerCycle * 5) +
+      (warnings.length === 0 ? 20 : Math.max(0, 20 - warnings.length * 8)) +
+      (loaded.length >= 3 ? 10 : 0)
+    )
+  ));
+
+  return {
+    stateDir,
+    cyclesAnalyzed: loaded.length,
+    avgIdeasPerCycle,
+    avgIntervalSec,
+    qualityScore,
+    warnings,
+    lastCycle: loaded[loaded.length - 1]
+      ? {
+          cycleNumber: loaded[loaded.length - 1].cycleNumber,
+          completedAt: loaded[loaded.length - 1].cycleCompletedAt
+        }
+      : null
+  };
+}
+
 function generateSvgImage(args) {
   const width = Number.isFinite(args.width) ? Math.floor(args.width) : 1280;
   const height = Number.isFinite(args.height) ? Math.floor(args.height) : 720;
@@ -3227,25 +3343,20 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
     const goal = args.goal || 'continuous autonomous improvement without manual handoff';
     return `Autonomous loop controller playbook for: ${goal}
 
-  1. Initialize and control loop state:
-    - Use \`set_autonomous_loop_control\` with action=resume to ensure loop is active.
+  1. Start or continue loop execution:
+    - Use \`orchestrate_continuous_improvement_loop\` for bounded execution batches.
+    - Use \`resume_interrupted_cycle\` to continue from checkpointed state.
 
-  2. Execute bounded continuous batches:
-    - Use \`orchestrate_continuous_improvement_loop\` with maxCycles per invocation.
-    - Persisted state carries forward cycle count and next pulse timing.
+  2. Control runtime behavior:
+    - Use \`set_autonomous_loop_control\` with pause/resume/trigger_now.
 
-  3. Monitor progress and artifacts:
-    - Use \`get_autonomous_loop_state\` to inspect status, cycle history, and queue health.
+  3. Monitor and evaluate rigor:
+    - Use \`get_autonomous_loop_state\` for current status and snapshots.
+    - Use \`evaluate_autonomous_loop_quality\` for cadence/trend quality scoring.
 
-  4. Keep cadence and control:
-    - Use cadenceMinutes for pulse scheduling.
-    - Use action=trigger_now to force immediate pulse.
-    - Use action=pause for safe interruption and action=resume to continue.
-
-  5. Rigor rules:
-    - Treat each cycle as checkpointed work unit.
-    - Never mark complete while loop is intended to continue.
-    - Only stop by explicit user interrupt or manual pause control.`;
+  4. Keep loop non-terminal:
+    - Continue cycle batches indefinitely unless explicitly paused or interrupted by the operator.
+    - Never treat an intermediate cycle as task completion.`;
   }
 
     if (name === 'skill_pack_operating_model') {
@@ -3288,7 +3399,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.7.0',
+      version: '0.8.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT

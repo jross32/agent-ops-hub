@@ -59,13 +59,30 @@ async function run(context) {
   assert(triggerRes.ok, 'set_autonomous_loop_control trigger_now failed');
   assert(triggerRes.json.state.triggerNow === true, 'triggerNow flag should be true after trigger_now');
 
+  const resumedRun = await context.client.callTool('resume_interrupted_cycle', {
+    stateDir,
+    cycles: 1,
+    cadenceMinutes: 10,
+  }, 60000);
+  assert(resumedRun.ok, 'resume_interrupted_cycle failed');
+  assert(resumedRun.json.cyclesRun >= 1, 'resume_interrupted_cycle should execute at least one cycle');
+
+  const qualityRes = await context.client.callTool('evaluate_autonomous_loop_quality', {
+    stateDir,
+    lastN: 20,
+  });
+  assert(qualityRes.ok, 'evaluate_autonomous_loop_quality failed');
+  assert(typeof qualityRes.json.qualityScore === 'number', 'quality score missing');
+  assert(qualityRes.json.cyclesAnalyzed >= 1, 'expected at least one analyzed cycle');
+
   return {
-    notes: `loop controller: cyclesRun=${runRes.json.cyclesRun}, totalCycles=${stateRes.json.state.totalCycles}, snapshots=${stateRes.json.recentCycles.length}`,
+    notes: `loop controller: cyclesRun=${runRes.json.cyclesRun}, totalCycles=${stateRes.json.state.totalCycles}, snapshots=${stateRes.json.recentCycles.length}, quality=${qualityRes.json.qualityScore}`,
     details: {
       cyclesRun: runRes.json.cyclesRun,
       totalCycles: stateRes.json.state.totalCycles,
       snapshots: stateRes.json.recentCycles.length,
       nextPulseAt: stateRes.json.state.nextPulseAt,
+      qualityScore: qualityRes.json.qualityScore,
     },
   };
 }
