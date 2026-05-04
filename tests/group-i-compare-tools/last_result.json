@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-04T07:18:28.515Z",
-  "runStamp": "2026-05-04_031820",
+  "timestamp": "2026-05-04T07:22:35.652Z",
+  "runStamp": "2026-05-04_032228",
   "testFile": "group-i-compare-tools/test.js",
   "id": "group-i-compare-tools",
   "status": "pass",
-  "durationMs": 13,
+  "durationMs": 10,
   "notes": "self: 58 tools identical; cross: +69 in os-bridge, -57 vs agent-ops-hub",
   "details": {
     "agentOpsHubTools": 58,

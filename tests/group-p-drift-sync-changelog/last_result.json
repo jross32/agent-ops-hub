@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-04T07:22:42.372Z",
+  "runStamp": "2026-05-04_032228",
+  "testFile": "group-p-drift-sync-changelog/test.js",
+  "id": "group-p-drift-sync-changelog",
+  "status": "pass",
+  "durationMs": 2048,
+  "notes": "drift: severity=warning findings=1 | sync: repos=2 clean=1 | changelog: commits=10 from=(beginning) | rca: cause=assertion_error severity=high multiPatterns=3",
+  "details": {
+    "driftSeverity": "warning",
+    "driftFindings": 1,
+    "reposChecked": 2,
+    "cleanRepos": 1,
+    "changelogCommits": 10,
+    "changelogFromRef": "(beginning)",
+    "rcaCause": "assertion_error",
+    "rcaSeverity": "high",
+    "rcaMultiPatterns": 3
+  }
+}
