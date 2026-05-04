@@ -184,10 +184,15 @@ async function main() {
   }, r => r.specialistId === 'backend_architect' ? null : 'wrong specialistId in response');
   await test('dispatch — security_engineer', 'dispatch_specialist_task', {
     specialistId: 'security_engineer',
-    taskTitle: 'Security audit of register_tool',
-    taskContext: 'Dynamic tool registration with vm.compileFunction sandbox check',
+    taskTitle: 'Security audit of JWT tokens and authentication vulnerability',
+    taskContext: 'Reviewing API authentication layer for injection and token security',
     outputFormat: 'markdown'
-  }, r => r.domain === 'security' ? null : `expected security domain, got ${r.domain}`);
+  }, r => {
+    if (r.domain !== 'security') return `expected security domain, got ${r.domain}`;
+    if (typeof r.confidence !== 'number') return 'missing confidence field';
+    if (r.confidence < 0.5) return `expected high confidence for security task, got ${r.confidence}`;
+    return null;
+  });
 
   // ── Sprint Execution ───────────────────────────────────────────────────────
   console.log('\n── Sprint Execution ─────────────────────────────────────────');
@@ -367,7 +372,12 @@ async function main() {
       { id: 'n2', toolName: 'get_memory', args: { key: 'roadmap.completedItems' }, label: 'Get completed' }
     ],
     edges: [{ from: 'n1', to: 'n2' }]
-  }, r => r.results && r.results.n1 && r.results.n2 ? null : 'missing results nodes');
+  }, r => {
+    if (!r.results || !r.results.n1 || !r.results.n2) return 'missing results nodes';
+    if (!Array.isArray(r.waves) || r.waves.length === 0) return 'missing waves timing array';
+    if (typeof r.results.n1.startedAt !== 'number') return 'missing node startedAt timestamp';
+    return null;
+  });
 
   await test('parallel 2-node graph (no edges)', 'execute_dependency_graph', {
     nodes: [
@@ -537,6 +547,61 @@ async function main() {
       { specialistId: 'systems_architect', output: 'Add circuit breaker pattern for external service calls. Use exponential backoff with jitter.' }
     ]
   }, r => r.synthesizedAt ? null : 'missing synthesizedAt field');
+
+  // ── Phase 2.3 / 3.1 / 5.x: new tools ──────────────────────────────────────
+  console.log('\n── New Phase 2–5 Tools ──────────────────────────────────────');
+
+  // delegate_to_server retry: bad server + retries=2 should still error but try 3 times
+  const delegRetryRes = await callTool('delegate_to_server', { serverUrl: 'http://127.0.0.1:19999', toolName: 'get_memory', args: { key: 'x' }, timeoutMs: 500, retries: 1 });
+  if (!delegRetryRes.ok) {
+    passCount++; console.log('✅ [    -] delegate_to_server — retry exhausted correctly errors');
+    results.push({ name: 'delegate retry exhausted errors', toolName: 'delegate_to_server', status: 'PASS', durationMs: 0, error: null });
+  } else {
+    failCount++; console.log('❌ [    -] delegate_to_server — retry should exhaust and error');
+    results.push({ name: 'delegate retry exhausted errors', toolName: 'delegate_to_server', status: 'FAIL', durationMs: 0, error: 'Should error' });
+  }
+
+  // get_tool_metrics — after some tool calls, latency data should be available
+  await test('get_tool_metrics', 'get_tool_metrics', { topN: 5 }, r => {
+    if (typeof r.totalToolsTracked !== 'number') return 'missing totalToolsTracked';
+    if (!Array.isArray(r.latency)) return 'latency must be array';
+    if (r.latency.length > 0 && typeof r.latency[0].p50 !== 'number') return 'missing p50 in latency entry';
+    return null;
+  });
+
+  // explain_tool — known tool
+  await test('explain_tool (get_memory)', 'explain_tool', { toolName: 'get_memory' }, r => {
+    if (r.name !== 'get_memory') return 'wrong tool name';
+    if (!Array.isArray(r.params)) return 'params must be array';
+    if (!r.usageExample) return 'missing usageExample';
+    return null;
+  });
+
+  // explain_tool — unknown tool should error
+  const explainBadRes = await callTool('explain_tool', { toolName: 'nonexistent_xyz' });
+  if (!explainBadRes.ok) {
+    passCount++; console.log('✅ [    -] explain_tool — unknown tool correctly errors');
+    results.push({ name: 'explain_tool unknown errors', toolName: 'explain_tool', status: 'PASS', durationMs: 0, error: null });
+  } else {
+    failCount++; console.log('❌ [    -] explain_tool — unknown tool should error');
+    results.push({ name: 'explain_tool unknown errors', toolName: 'explain_tool', status: 'FAIL', durationMs: 0, error: 'Should error' });
+  }
+
+  // export_tool_catalog — markdown
+  await test('export_tool_catalog (markdown)', 'export_tool_catalog', { format: 'markdown' }, r => {
+    if (r.format !== 'markdown') return 'wrong format';
+    if (typeof r.toolCount !== 'number' || r.toolCount < 70) return `toolCount too low: ${r.toolCount}`;
+    if (!r.markdown.includes('# MCP Tool Catalog')) return 'markdown missing header';
+    return null;
+  });
+
+  // export_tool_catalog — json with schemas
+  await test('export_tool_catalog (json+schema)', 'export_tool_catalog', { format: 'json', includeSchema: true }, r => {
+    if (r.format !== 'json') return 'wrong format';
+    if (!Array.isArray(r.tools)) return 'tools must be array';
+    if (!r.tools[0].inputSchema) return 'missing inputSchema in first tool';
+    return null;
+  });
 
   // ── Final Summary ───────────────────────────────────────────────────────────
   const total = passCount + failCount + skipCount;

@@ -1,11 +1,11 @@
 # agent-ops-hub v1.0.0 Full Tool Test Report
-**Date:** 2026-05-04T11:23:46.307Z
+**Date:** 2026-05-04T22:23:01.203Z
 
 ## Summary
 | Metric | Value |
 |--------|-------|
-| Total Tests | 74 |
-| ✅ Passed | 74 |
+| Total Tests | 80 |
+| ✅ Passed | 80 |
 | ❌ Failed | 0 |
 | ⏭️ Skipped | 0 |
 | Pass Rate | 100% |
@@ -85,3 +85,9 @@
 ✅ `stop_child_server` — bad server stop errors
 ✅ `evaluate_sprint_output` — evaluate sprint output
 ✅ `synthesize_sprint_outputs` — synthesize sprint outputs
+✅ `delegate_to_server` — delegate retry exhausted errors
+✅ `get_tool_metrics` — get_tool_metrics
+✅ `explain_tool` — explain_tool (get_memory)
+✅ `explain_tool` — explain_tool unknown errors
+✅ `export_tool_catalog` — export_tool_catalog (markdown)
+✅ `export_tool_catalog` — export_tool_catalog (json+schema)

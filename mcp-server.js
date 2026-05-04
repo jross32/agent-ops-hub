@@ -1193,14 +1193,15 @@ const TOOLS = [
   },
   {
     name: 'delegate_to_server',
-    description: 'Delegate a tool call to a peer MCP server via its HTTP bridge. Sends a JSON-RPC tools/call request and returns the result.',
+    description: 'Delegate a tool call to a peer MCP server via its HTTP bridge. Sends a JSON-RPC tools/call request and returns the result. Supports optional timeout and retry with exponential back-off.',
     inputSchema: {
       type: 'object',
       properties: {
         serverUrl: { type: 'string', description: 'Base URL of the peer server HTTP bridge (e.g. http://127.0.0.1:11201)' },
         toolName:  { type: 'string', description: 'Tool name to call on the peer server' },
         args:      { type: 'object', description: 'Arguments to pass to the tool' },
-        timeoutMs: { type: 'number', description: 'HTTP timeout in ms (default 30000)' }
+        timeoutMs: { type: 'number', description: 'HTTP timeout per attempt in ms (default 30000)' },
+        retries:   { type: 'number', description: 'Number of retry attempts on failure (0–5, default 0). Uses 200ms*attempt back-off.' }
       },
       required: ['serverUrl', 'toolName'],
       additionalProperties: false
@@ -1208,13 +1209,15 @@ const TOOLS = [
   },
   {
     name: 'spawn_child_server',
-    description: 'Spawn a peer MCP server as a managed child process. Returns a serverId that can be used with stop_child_server and delegate_to_server.',
+    description: 'Spawn a peer MCP server as a managed child process. Returns a serverId that can be used with stop_child_server and delegate_to_server. Use waitForReady=true to block until the child HTTP health endpoint responds.',
     inputSchema: {
       type: 'object',
       properties: {
-        serverPath: { type: 'string', description: 'Absolute path to the server directory containing mcp-server.js' },
-        port:       { type: 'number', description: 'Port the child server should listen on (passed as HTTP_PORT env var)' },
-        label:      { type: 'string', description: 'Human-readable label for this server instance' }
+        serverPath:    { type: 'string', description: 'Absolute path to the server directory containing mcp-server.js' },
+        port:          { type: 'number', description: 'Port the child server should listen on (passed as HTTP_PORT env var)' },
+        label:         { type: 'string', description: 'Human-readable label for this server instance' },
+        waitForReady:  { type: 'boolean', description: 'If true, poll /health until ready (up to readyTimeoutMs). Requires port.' },
+        readyTimeoutMs: { type: 'number', description: 'Max ms to wait for health endpoint when waitForReady=true (default 5000)' }
       },
       required: ['serverPath'],
       additionalProperties: false
@@ -1229,6 +1232,41 @@ const TOOLS = [
         serverId: { type: 'string', description: 'Server ID returned by spawn_child_server' }
       },
       required: ['serverId'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'get_tool_metrics',
+    description: 'Return per-tool call counts and latency percentiles (p50/p95/p99) from the rolling in-memory histogram. Shows the top-N most-called tools since server start.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topN: { type: 'number', description: 'Number of tools to return, sorted by call count (default 10, max 75)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'explain_tool',
+    description: 'Return a human-readable explanation of a single tool — its purpose, parameters, return shape, and a usage example. Helpful for AI agents exploring the catalog.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        toolName: { type: 'string', description: 'Exact name of the tool to explain' }
+      },
+      required: ['toolName'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'export_tool_catalog',
+    description: 'Export the full MCP tool catalog as a structured JSON or Markdown document. Useful for documentation, onboarding, and agent self-discovery.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        format:        { type: 'string', enum: ['json', 'markdown'], description: 'Output format (default "markdown")' },
+        includeSchema: { type: 'boolean', description: 'Include full inputSchema per tool (default false)' }
+      },
       additionalProperties: false
     }
   }
@@ -1490,6 +1528,17 @@ async function handleMessage(message) {
 }
 
 async function runTool(name, args) {
+  const _t0 = Date.now();
+  let _result;
+  try {
+    _result = await _dispatchTool(name, args);
+  } finally {
+    _recordToolLatency(name, Date.now() - _t0);
+  }
+  return _result;
+}
+
+async function _dispatchTool(name, args) {
   switch (name) {
     case 'agent_mode_preflight':
       return agentModePreflight(args);
@@ -1636,9 +1685,15 @@ async function runTool(name, args) {
     case 'delegate_to_server':
       return await delegateToServer(args);
     case 'spawn_child_server':
-      return spawnChildServer(args);
+      return await spawnChildServer(args);
     case 'stop_child_server':
       return stopChildServer(args);
+    case 'get_tool_metrics':
+      return getToolMetrics(args);
+    case 'explain_tool':
+      return explainTool(args);
+    case 'export_tool_catalog':
+      return exportToolCatalog(args);
     default: {
       // Fallback: check dynamically registered tools
       const dynHandler = _dynamicHandlers.get(name);
@@ -4339,11 +4394,20 @@ Execution checklist:
 - Configure output format as: ${outputFormat}
 - Test output completeness: summary + findings + recommendations + next steps`;
 
+  // Compute domain confidence: keyword overlap between task and specialist
+  const taskText = `${taskTitle || ''} ${taskContext || ''}`.toLowerCase();
+  const domainKeywords = [specialist.domain, ...specialist.strengths].map(s => s.toLowerCase());
+  const matchCount = domainKeywords.filter(kw => taskText.includes(kw)).length;
+  const confidence = Math.min(1, matchCount / Math.max(1, Math.ceil(domainKeywords.length * 0.5)));
+  const confidenceLabel = confidence >= 0.7 ? 'high' : confidence >= 0.4 ? 'medium' : 'low';
+
   return {
     specialistId,
     role:           specialist.title,
     domain:         specialist.domain,
     strengths:      specialist.strengths,
+    confidence:     Math.round(confidence * 100) / 100,
+    confidenceLabel,
     taskTitle,
     outputFormat,
     systemPrompt,
@@ -5846,21 +5910,26 @@ async function executeDependencyGraph(args) {
   // Execute waves in order, nodes within a wave in parallel
   const results = {};
   const executionOrder = [];
+  const waveTimings = [];
   const startedAt = Date.now();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-  for (const wave of waves) {
+  for (let waveIdx = 0; waveIdx < waves.length; waveIdx++) {
+    const wave = waves[waveIdx];
     executionOrder.push(wave);
+    const waveStart = Date.now();
     const waveResults = await Promise.all(wave.map(async (id) => {
       const node = nodeMap.get(id);
       const t0 = Date.now();
       try {
         const result = await runTool(node.toolName, node.args || {});
-        return { id, status: 'ok', result, durationMs: Date.now() - t0 };
+        return { id, status: 'ok', result, startedAt: t0, endedAt: Date.now(), durationMs: Date.now() - t0 };
       } catch (err) {
-        return { id, status: 'error', error: err.message, durationMs: Date.now() - t0 };
+        return { id, status: 'error', error: err.message, startedAt: t0, endedAt: Date.now(), durationMs: Date.now() - t0 };
       }
     }));
+    const waveEnd = Date.now();
+    waveTimings.push({ waveIndex: waveIdx, nodes: wave, durationMs: waveEnd - waveStart });
 
     for (const wr of waveResults) {
       results[wr.id] = wr;
@@ -5870,6 +5939,7 @@ async function executeDependencyGraph(args) {
           abortedAt: wr.id,
           results,
           executionOrder,
+          waves: waveTimings,
           totalMs: Date.now() - startedAt
         };
       }
@@ -5882,6 +5952,7 @@ async function executeDependencyGraph(args) {
     waveCount: waves.length,
     results,
     executionOrder,
+    waves: waveTimings,
     totalMs: Date.now() - startedAt
   };
 }
@@ -5962,6 +6033,131 @@ function unloadSkillPack(args) {
 
 const _childServers = new Map(); // serverId → { process, port, label, path }
 
+// ─── Per-tool latency histogram (rolling 100 samples) ─────────────────────────
+// _toolMetrics: name → { calls: number, samples: number[], callsIn progress: number }
+const _toolMetrics = new Map();
+const LATENCY_WINDOW = 100; // keep last N samples per tool
+
+function _recordToolLatency(toolName, durationMs) {
+  let m = _toolMetrics.get(toolName);
+  if (!m) { m = { calls: 0, samples: [] }; _toolMetrics.set(toolName, m); }
+  m.calls++;
+  m.samples.push(durationMs);
+  if (m.samples.length > LATENCY_WINDOW) m.samples.shift();
+}
+
+function _percentile(sorted, p) {
+  if (sorted.length === 0) return 0;
+  const idx = Math.max(0, Math.ceil(sorted.length * p) - 1);
+  return sorted[idx];
+}
+
+function _getLatencyStats(topN = 5) {
+  const entries = [];
+  for (const [name, m] of _toolMetrics) {
+    if (m.samples.length === 0) continue;
+    const sorted = [...m.samples].sort((a, b) => a - b);
+    entries.push({
+      tool:    name,
+      calls:   m.calls,
+      p50:     _percentile(sorted, 0.5),
+      p95:     _percentile(sorted, 0.95),
+      p99:     _percentile(sorted, 0.99),
+      samples: m.samples.length,
+    });
+  }
+  // Sort by total calls desc, return top N
+  return entries.sort((a, b) => b.calls - a.calls).slice(0, topN);
+}
+
+
+function getToolMetrics(args) {
+  const topN = Math.min(75, Number.isFinite(args && args.topN) ? args.topN : 10);
+  const stats = _getLatencyStats(topN);
+  return {
+    topN,
+    totalToolsTracked: _toolMetrics.size,
+    latency:           stats,
+    collectedAt:       new Date().toISOString(),
+  };
+}
+
+function explainTool(args) {
+  const toolName = args.toolName;
+  const tool = TOOLS.find(t => t.name === toolName);
+  if (!tool) {
+    const names = TOOLS.map(t => t.name).sort();
+    throw new Error(`Unknown tool: "${toolName}". Available (${TOOLS.length}): ${names.join(', ')}`);
+  }
+
+  const schema   = tool.inputSchema || {};
+  const props    = schema.properties || {};
+  const required = new Set(schema.required || []);
+
+  const params = Object.entries(props).map(([k, v]) => ({
+    name:        k,
+    type:        v.type || 'any',
+    required:    required.has(k),
+    description: v.description || '',
+    ...(v.enum   ? { enum: v.enum }   : {}),
+    ...(v.default !== undefined ? { default: v.default } : {}),
+  }));
+
+  // Build a minimal usage example using required params
+  const exampleArgs = {};
+  for (const p of params) {
+    if (!p.required) continue;
+    exampleArgs[p.name] = p.type === 'number' ? 0 : p.type === 'boolean' ? false : `<${p.name}>`;
+  }
+
+  return {
+    name:        tool.name,
+    description: tool.description,
+    params,
+    requiredParams:  params.filter(p => p.required).map(p => p.name),
+    optionalParams:  params.filter(p => !p.required).map(p => p.name),
+    usageExample: { toolName: tool.name, args: exampleArgs },
+  };
+}
+
+function exportToolCatalog(args) {
+  const format        = (args && args.format)        || 'markdown';
+  const includeSchema = (args && args.includeSchema) === true;
+
+  const catalog = TOOLS.map(t => {
+    const entry = {
+      name:        t.name,
+      description: t.description,
+    };
+    if (includeSchema) entry.inputSchema = t.inputSchema || {};
+    return entry;
+  });
+
+  if (format === 'json') {
+    return { format: 'json', toolCount: catalog.length, tools: catalog, exportedAt: new Date().toISOString() };
+  }
+
+  // Markdown format
+  const lines = [
+    `# MCP Tool Catalog — agent-ops-hub`,
+    ``,
+    `**${catalog.length} tools** · Exported ${new Date().toISOString()}`,
+    ``,
+  ];
+  for (const t of catalog) {
+    lines.push(`## \`${t.name}\``);
+    lines.push(`${t.description}`);
+    if (includeSchema && t.inputSchema) {
+      lines.push('');
+      lines.push('```json');
+      lines.push(JSON.stringify(t.inputSchema, null, 2));
+      lines.push('```');
+    }
+    lines.push('');
+  }
+  return { format: 'markdown', toolCount: catalog.length, markdown: lines.join('\n'), exportedAt: new Date().toISOString() };
+}
+
 async function listAvailableServers(args) {
   const rootPath = normalizeFsPath(args && args.rootPath ? args.rootPath : 'C:\\Users\\justi\\mcp-servers');
   const checkHealth = args && args.checkHealth !== false;
@@ -6037,6 +6233,7 @@ async function delegateToServer(args) {
   const toolName  = args.toolName;
   const toolArgs  = args.args || {};
   const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 30000;
+  const maxRetries = Number.isFinite(args.retries) ? Math.max(0, Math.min(args.retries, 5)) : 0;
 
   const body = JSON.stringify({
     jsonrpc: '2.0',
@@ -6045,7 +6242,7 @@ async function delegateToServer(args) {
     params:  { name: toolName, arguments: toolArgs }
   });
 
-  const result = await new Promise((resolve, reject) => {
+  const attemptOnce = () => new Promise((resolve, reject) => {
     const url = new URL(`${serverUrl}/mcp`);
     const mod = url.protocol === 'https:' ? require('https') : require('http');
     const to  = setTimeout(() => reject(new Error(`Delegate timeout after ${timeoutMs}ms`)), timeoutMs);
@@ -6070,23 +6267,45 @@ async function delegateToServer(args) {
     req.end();
   });
 
-  if (result.error) throw new Error(`Peer error: ${JSON.stringify(result.error)}`);
-
-  return {
-    serverUrl,
-    toolName,
-    result: result.result,
-    delegatedAt: new Date().toISOString()
-  };
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await attemptOnce();
+      if (result.error) throw new Error(`Peer error: ${JSON.stringify(result.error)}`);
+      return {
+        serverUrl,
+        toolName,
+        result:    result.result,
+        attempt:   attempt + 1,
+        delegatedAt: new Date().toISOString()
+      };
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        // brief back-off: 200ms * (attempt+1)
+        await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
 }
 
-function spawnChildServer(args) {
-  const serverPath = normalizeFsPath(args.serverPath);
-  const port       = args.port || null;
-  const label      = args.label || path.basename(serverPath);
+async function spawnChildServer(args) {
+  const serverPath   = normalizeFsPath(args.serverPath);
+  const port         = args.port || null;
+  const label        = args.label || path.basename(serverPath);
+  const waitForReady = args.waitForReady === true;
+  const readyTimeoutMs = Number.isFinite(args.readyTimeoutMs) ? args.readyTimeoutMs : 5000;
 
   if (!fs.existsSync(path.join(serverPath, 'mcp-server.js'))) {
     throw new Error(`mcp-server.js not found in: ${serverPath}`);
+  }
+
+  // Enforce child server limit to prevent resource exhaustion
+  const MAX_CHILD_SERVERS = Number.isFinite(parseInt(process.env.MAX_CHILD_SERVERS))
+    ? parseInt(process.env.MAX_CHILD_SERVERS) : 5;
+  if (_childServers.size >= MAX_CHILD_SERVERS) {
+    throw new Error(`Child server limit reached (${MAX_CHILD_SERVERS}). Stop an existing child server before spawning a new one.`);
   }
 
   const env = { ...process.env };
@@ -6104,12 +6323,33 @@ function spawnChildServer(args) {
 
   child.on('exit', () => { _childServers.delete(serverId); });
 
+  // Optionally wait until the child's HTTP health endpoint responds
+  let readyMs = null;
+  if (waitForReady && port) {
+    const http = require('http');
+    const deadline = Date.now() + readyTimeoutMs;
+    let ready = false;
+    while (Date.now() < deadline) {
+      try {
+        await new Promise((resolve) => {
+          const req = http.get(`http://127.0.0.1:${port}/health`, (res) => { ready = res.statusCode < 500; res.resume(); resolve(); });
+          req.on('error', () => resolve());
+          req.setTimeout(300, () => { req.destroy(); resolve(); });
+        });
+        if (ready) { readyMs = Date.now() - (deadline - readyTimeoutMs); break; }
+      } catch (_) { /* keep polling */ }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+
   return {
     serverId,
     pid:     child.pid,
     port,
     label,
     serverPath,
+    ready:   readyMs !== null ? true : (waitForReady ? false : null),
+    readyMs,
     message: `Child server spawned (PID ${child.pid}). Use delegate_to_server with the correct port to call tools.`
   };
 }
