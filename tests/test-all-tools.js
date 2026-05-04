@@ -603,6 +603,24 @@ async function main() {
     return null;
   });
 
+  // run_eval_loop
+  await test('run_eval_loop (get_memory, 2 iters)', 'run_eval_loop', {
+    toolName:   'get_memory',
+    testCases:  [{ args: { key: 'roadmap.version' } }],
+    iterations: 2
+  }, r => {
+    if (typeof r.overallPassRate !== 'number') return 'missing overallPassRate';
+    if (r.totalRuns !== 2) return `expected 2 runs, got ${r.totalRuns}`;
+    return null;
+  });
+
+  // replay_last_sprint — should replay most recent
+  await test('replay_last_sprint (most recent)', 'replay_last_sprint', {}, r => {
+    if (!r.replayedSprintId) return 'missing replayedSprintId';
+    if (!Array.isArray(r.outputs) || r.outputs.length === 0) return 'outputs must be non-empty array';
+    return null;
+  });
+
   // ── Final Summary ───────────────────────────────────────────────────────────
   const total = passCount + failCount + skipCount;
   const pct = total > 0 ? Math.round(passCount / total * 100) : 0;

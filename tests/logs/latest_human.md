@@ -1,11 +1,11 @@
 # agent-ops-hub v1.0.0 Full Tool Test Report
-**Date:** 2026-05-04T22:23:01.203Z
+**Date:** 2026-05-04T22:27:21.368Z
 
 ## Summary
 | Metric | Value |
 |--------|-------|
-| Total Tests | 80 |
-| ✅ Passed | 80 |
+| Total Tests | 82 |
+| ✅ Passed | 82 |
 | ❌ Failed | 0 |
 | ⏭️ Skipped | 0 |
 | Pass Rate | 100% |
@@ -91,3 +91,5 @@
 ✅ `explain_tool` — explain_tool unknown errors
 ✅ `export_tool_catalog` — export_tool_catalog (markdown)
 ✅ `export_tool_catalog` — export_tool_catalog (json+schema)
+✅ `run_eval_loop` — run_eval_loop (get_memory, 2 iters)
+✅ `replay_last_sprint` — replay_last_sprint (most recent)

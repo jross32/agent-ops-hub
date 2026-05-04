@@ -1269,6 +1269,34 @@ const TOOLS = [
       },
       additionalProperties: false
     }
+  },
+  {
+    name: 'run_eval_loop',
+    description: 'Run a continuous evaluation loop: call a target tool with each test case N times, collect pass/fail and latency stats. Returns a report with pass rate and p95 latency. Useful for regression and soak testing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        toolName:   { type: 'string', description: 'Tool to exercise in the loop' },
+        testCases:  { type: 'array',  description: 'Array of { args, expectKey, expectValue } test case objects', items: { type: 'object' } },
+        iterations: { type: 'number', description: 'Number of full passes through testCases (default 3, max 20)' },
+        stopOnFail: { type: 'boolean', description: 'Halt after first failure (default false)' }
+      },
+      required: ['toolName', 'testCases'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'replay_last_sprint',
+    description: 'Re-run the most recent parallel specialist sprint from saved log artifacts, optionally filtering to a subset of specialists. Returns fresh specialist outputs alongside the original for comparison.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sprintId:            { type: 'string', description: 'Sprint ID to replay (omit to use the most recent)' },
+        specialistFilter:    { type: 'array',  description: 'Only re-run these specialistIds (omit for all)', items: { type: 'string' } },
+        compareWithOriginal: { type: 'boolean', description: 'Include original outputs in response for side-by-side comparison (default true)' }
+      },
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1694,6 +1722,10 @@ async function _dispatchTool(name, args) {
       return explainTool(args);
     case 'export_tool_catalog':
       return exportToolCatalog(args);
+    case 'run_eval_loop':
+      return await runEvalLoop(args);
+    case 'replay_last_sprint':
+      return await replayLastSprint(args);
     default: {
       // Fallback: check dynamically registered tools
       const dynHandler = _dynamicHandlers.get(name);
@@ -6156,6 +6188,136 @@ function exportToolCatalog(args) {
     lines.push('');
   }
   return { format: 'markdown', toolCount: catalog.length, markdown: lines.join('\n'), exportedAt: new Date().toISOString() };
+}
+
+async function runEvalLoop(args) {
+  const toolName   = args.toolName;
+  const testCases  = Array.isArray(args.testCases) ? args.testCases : [];
+  const iterations = Math.min(20, Math.max(1, Number.isFinite(args.iterations) ? args.iterations : 3));
+  const stopOnFail = args.stopOnFail === true;
+
+  if (testCases.length === 0) throw new Error('testCases must be a non-empty array');
+  if (!TOOLS.find(t => t.name === toolName) && !_dynamicHandlers.has(toolName)) {
+    throw new Error(`Unknown tool: "${toolName}"`);
+  }
+
+  const caseResults = testCases.map(tc => ({ args: tc.args || {}, expectKey: tc.expectKey, expectValue: tc.expectValue, pass: 0, fail: 0, latencies: [] }));
+  let totalPass = 0, totalFail = 0;
+  let aborted = false;
+
+  for (let iter = 0; iter < iterations && !aborted; iter++) {
+    for (let ci = 0; ci < testCases.length && !aborted; ci++) {
+      const tc = caseResults[ci];
+      const t0 = Date.now();
+      try {
+        const result = await runTool(toolName, tc.args);
+        const ok = tc.expectKey
+          ? (result && String(result[tc.expectKey]) === String(tc.expectValue))
+          : true;
+        if (ok) { tc.pass++; totalPass++; }
+        else    { tc.fail++; totalFail++; if (stopOnFail) { aborted = true; } }
+      } catch (e) {
+        tc.fail++; totalFail++;
+        if (stopOnFail) { aborted = true; }
+      }
+      tc.latencies.push(Date.now() - t0);
+    }
+  }
+
+  const report = caseResults.map((tc, i) => {
+    const sorted = [...tc.latencies].sort((a, b) => a - b);
+    return {
+      caseIndex: i,
+      args:      tc.args,
+      pass:      tc.pass,
+      fail:      tc.fail,
+      passRate:  Math.round(tc.pass / Math.max(1, tc.pass + tc.fail) * 100),
+      p50:       _percentile(sorted, 0.5),
+      p95:       _percentile(sorted, 0.95),
+    };
+  });
+
+  const overallPassRate = Math.round(totalPass / Math.max(1, totalPass + totalFail) * 100);
+  return {
+    toolName,
+    iterations,
+    testCaseCount: testCases.length,
+    totalRuns:     totalPass + totalFail,
+    totalPass,
+    totalFail,
+    overallPassRate,
+    aborted,
+    cases:         report,
+    ranAt:         new Date().toISOString(),
+  };
+}
+
+async function replayLastSprint(args) {
+  const sprintId           = args && args.sprintId;
+  const specialistFilter   = Array.isArray(args && args.specialistFilter) ? args.specialistFilter : null;
+  const compareWithOriginal = (args && args.compareWithOriginal) !== false; // default true
+
+  // Find saved sprint log
+  const sprintLogDir = path.join(__dirname, 'logs', 'specialist-runs');
+  if (!fs.existsSync(sprintLogDir)) throw new Error(`Sprint log dir not found: ${sprintLogDir}`);
+
+  // Collect all sprint log files
+  const allFiles = [];
+  for (const dateDir of fs.readdirSync(sprintLogDir)) {
+    const datePath = path.join(sprintLogDir, dateDir);
+    if (!fs.statSync(datePath).isDirectory()) continue;
+    for (const f of fs.readdirSync(datePath)) {
+      if (f.endsWith('.json')) allFiles.push(path.join(datePath, f));
+    }
+  }
+  if (allFiles.length === 0) throw new Error('No sprint logs found to replay');
+
+  // Find target log
+  let targetFile;
+  if (sprintId) {
+    targetFile = allFiles.find(f => f.includes(sprintId));
+    if (!targetFile) throw new Error(`Sprint log not found for sprintId: "${sprintId}"`);
+  } else {
+    // Most recent by mtime
+    allFiles.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    targetFile = allFiles[0];
+  }
+
+  const originalLog = JSON.parse(fs.readFileSync(targetFile, 'utf8'));
+  const tasks = Array.isArray(originalLog.tasks) ? originalLog.tasks
+    : Array.isArray(originalLog.perTaskScores) ? originalLog.perTaskScores
+    : [];
+
+  // Filter if needed
+  const filteredTasks = specialistFilter
+    ? tasks.filter(t => specialistFilter.includes(t.specialistId))
+    : tasks;
+
+  if (filteredTasks.length === 0) throw new Error('No matching tasks after filter');
+
+  // Re-dispatch each task
+  const replayOutputs = await Promise.all(filteredTasks.map(async (t) => {
+    const fresh = dispatchSpecialistTask({
+      specialistId: t.specialistId,
+      taskTitle:    t.taskTitle || t.title,
+      taskContext:  t.taskContext || t.context || '',
+      outputFormat: t.outputFormat || 'markdown',
+    });
+    return {
+      specialistId:   t.specialistId,
+      taskTitle:      fresh.taskTitle,
+      fresh:          { systemPrompt: fresh.systemPrompt, taskPrompt: fresh.taskPrompt, confidence: fresh.confidence },
+      original:       compareWithOriginal ? (t.result || t.output || null) : undefined,
+    };
+  }));
+
+  return {
+    replayedSprintId:  originalLog.sprintId || path.basename(targetFile, '.json'),
+    sourceFile:        targetFile,
+    tasksReplayed:     replayOutputs.length,
+    outputs:           replayOutputs,
+    replayedAt:        new Date().toISOString(),
+  };
 }
 
 async function listAvailableServers(args) {
