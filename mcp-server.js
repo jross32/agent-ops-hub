@@ -824,6 +824,19 @@ const TOOLS = [
       },
       additionalProperties: false
     }
+  },
+  {
+    name: 'compare_server_capabilities',
+    description: 'Diff two MCP server files by tool names and descriptions. Returns lists of added, removed, and changed tools — useful for auditing upgrades, merges, or diverging server versions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverPathA: { type: 'string', description: 'Absolute path to the first mcp-server.js (baseline/old version)' },
+        serverPathB: { type: 'string', description: 'Absolute path to the second mcp-server.js (new version). Defaults to this server.' }
+      },
+      required: ['serverPathA'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1086,6 +1099,8 @@ async function runTool(name, args) {
       return semanticToolSearch(args);
     case 'tool_dependency_graph':
       return toolDependencyGraph(args);
+    case 'compare_server_capabilities':
+      return compareServerCapabilities(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3678,6 +3693,61 @@ function regressionRootCauseAnalysis(args) {
     stackTrace: stackLines,
     failedTestNames: testNames.slice(0, 20),
     recommendation: topCause.hint
+  };
+}
+
+function compareServerCapabilities(args) {
+  const pathA = normalizeFsPath(args.serverPathA);
+  const pathB = args.serverPathB ? normalizeFsPath(args.serverPathB) : __filename;
+
+  function extractTools(filePath) {
+    let src;
+    try {
+      src = fs.readFileSync(filePath, 'utf8');
+    } catch (err) {
+      throw new Error(`Cannot read ${filePath}: ${err.message}`);
+    }
+    const tools = {};
+    // Extract { name: '...', description: '...' } pairs in order from the source
+    const nameRe   = /name:\s*'([^']+)'/g;
+    const descRe   = /description:\s*'([^']+)'/g;
+    const names = [...src.matchAll(nameRe)].map((m) => m[1]);
+    const descs = [...src.matchAll(descRe)].map((m) => m[1]);
+    // TOOLS section names come before PROMPTS — heuristic: descriptions outnumber names slightly
+    // Use positional pairing up to the names count
+    for (let i = 0; i < names.length; i++) {
+      tools[names[i]] = descs[i] || '';
+    }
+    return tools;
+  }
+
+  const toolsA = extractTools(pathA);
+  const toolsB = extractTools(pathB);
+
+  const namesA = new Set(Object.keys(toolsA));
+  const namesB = new Set(Object.keys(toolsB));
+
+  const added   = [...namesB].filter((n) => !namesA.has(n)).map((n) => ({ name: n, description: toolsB[n] }));
+  const removed = [...namesA].filter((n) => !namesB.has(n)).map((n) => ({ name: n, description: toolsA[n] }));
+  const changed = [...namesA].filter((n) => namesB.has(n) && toolsA[n] !== toolsB[n]).map((n) => ({
+    name: n,
+    descriptionA: toolsA[n],
+    descriptionB: toolsB[n]
+  }));
+  const unchanged = [...namesA].filter((n) => namesB.has(n) && toolsA[n] === toolsB[n]).length;
+
+  return {
+    serverA: pathA,
+    serverB: pathB,
+    totalInA: namesA.size,
+    totalInB: namesB.size,
+    addedCount:   added.length,
+    removedCount: removed.length,
+    changedCount: changed.length,
+    unchangedCount: unchanged,
+    added,
+    removed,
+    changed
   };
 }
 
