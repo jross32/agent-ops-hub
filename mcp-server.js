@@ -8,6 +8,26 @@ const { spawn } = require('child_process');
 
 const DEFAULT_MCP_ROOT = 'C:/Users/justi/mcp-servers';
 const DEFAULT_RUNBOOK_DIR = path.resolve(__dirname, 'artifacts', 'runbooks');
+const DEFAULT_RESEARCH_DIR = path.resolve(__dirname, 'artifacts', 'research-pulses');
+const DEFAULT_RESEARCH_URLS = [
+  'https://modelcontextprotocol.io/',
+  'https://github.blog/changelog/',
+  'https://platform.openai.com/docs/overview',
+  'https://docs.github.com/en/copilot',
+  'https://playwright.dev/docs/intro'
+];
+const DEFAULT_RESEARCH_KEYWORDS = [
+  'mcp',
+  'agent',
+  'workflow',
+  'orchestration',
+  'automation',
+  'prompt',
+  'evaluation',
+  'benchmark',
+  'security',
+  'parallel'
+];
 
 const SPECIALIST_AGENT_CATALOG = [
   { id: 'ux_ui_architect', domain: 'ux', title: 'UX/UI Architect', strengths: ['ux', 'ui', 'interaction', 'layout'] },
@@ -476,6 +496,47 @@ const TOOLS = [
     }
   },
   {
+    name: 'research_improvement_ideas',
+    description: 'Run a web research pulse over selected URLs, score signal by keywords, and extract actionable improvement ideas',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        urls: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: 20,
+          description: 'Target URLs to scan (defaults to MCP/AI/dev tooling sources)'
+        },
+        keywords: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: 50,
+          description: 'Signal keywords used for idea scoring'
+        },
+        timeoutMs: { type: 'number', minimum: 1000, maximum: 90000 },
+        maxBytes: { type: 'number', minimum: 4096, maximum: 500000 },
+        topIdeas: { type: 'number', minimum: 1, maximum: 50, description: 'Maximum ideas to return (default 12)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'record_research_pulse',
+    description: 'Persist a research pulse result to disk and return recommendations for next scan timing',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pulse: { type: 'object', description: 'Object returned by research_improvement_ideas' },
+        outputDir: { type: 'string', description: 'Directory where pulse snapshot JSON should be stored' },
+        cadenceMinutes: { type: 'number', minimum: 5, maximum: 1440, description: 'Recommended recurrence interval in minutes (default 10)' }
+      },
+      required: ['pulse'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'validate_json_schema',
     description: 'Validate a JSON object against a JSON Schema definition and return a structured pass/fail report with detailed errors',
     inputSchema: {
@@ -511,6 +572,14 @@ const PROMPTS = [
     arguments: [
       { name: 'goal', description: 'Project goal for the specialist team', required: false },
       { name: 'teamSize', description: 'Desired active specialists to start with', required: false }
+    ]
+  },
+  {
+    name: 'continuous_research_loop',
+    description: 'How to run a nonstop build-improve cycle with web research pulses every 10 minutes and fast integration of new ideas',
+    arguments: [
+      { name: 'goal', description: 'What system should be continuously improved', required: false },
+      { name: 'cadenceMinutes', description: 'Research pulse cadence in minutes', required: false }
     ]
   },
   {
@@ -567,7 +636,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.2.0'
+        version: '0.3.0'
       },
       capabilities: {
         tools: {},
@@ -668,6 +737,10 @@ async function runTool(name, args) {
       return planSpecialistAssignments(args);
     case 'build_collaboration_schedule':
       return buildCollaborationSchedule(args);
+    case 'research_improvement_ideas':
+      return researchImprovementIdeas(args);
+    case 'record_research_pulse':
+      return recordResearchPulse(args);
     case 'validate_json_schema':
       return validateJsonSchema(args);
     default:
@@ -1372,7 +1445,7 @@ function sendResult(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
 
-// ── New tool implementations (v0.2.0) ────────────────────────────────────
+// ── New tool implementations (v0.3.0) ────────────────────────────────────
 
 function scanToolCoverage(args) {
   const serverDir = normalizeFsPath(args.serverDir);
@@ -1990,6 +2063,89 @@ function buildCollaborationSchedule(args) {
   };
 }
 
+async function researchImprovementIdeas(args) {
+  const urls = Array.isArray(args.urls) && args.urls.length ? args.urls : DEFAULT_RESEARCH_URLS;
+  const keywords = Array.isArray(args.keywords) && args.keywords.length
+    ? args.keywords.map((k) => String(k || '').trim().toLowerCase()).filter(Boolean)
+    : DEFAULT_RESEARCH_KEYWORDS;
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 12000;
+  const maxBytes = Number.isFinite(args.maxBytes) ? args.maxBytes : 120000;
+  const topIdeas = Number.isFinite(args.topIdeas) ? Math.floor(args.topIdeas) : 12;
+
+  const scans = [];
+  const ideas = [];
+  const keywordCoverage = Object.fromEntries(keywords.map((k) => [k, 0]));
+
+  for (const url of urls) {
+    try {
+      const resp = await fetchUrl(url, timeoutMs, maxBytes);
+      const plain = htmlToText(resp.body);
+      const summary = compressText(plain, 1400);
+      const lower = summary.toLowerCase();
+
+      let score = 0;
+      for (const keyword of keywords) {
+        if (lower.includes(keyword)) {
+          keywordCoverage[keyword] += 1;
+          score += 1;
+        }
+      }
+
+      scans.push({
+        url,
+        statusCode: resp.statusCode,
+        title: extractTitle(resp.body),
+        keywordScore: score
+      });
+
+      ideas.push(...extractActionableIdeas(url, summary, keywords));
+    } catch (error) {
+      scans.push({ url, error: error.message, keywordScore: 0 });
+    }
+  }
+
+  ideas.sort((a, b) => b.score - a.score);
+  const selectedIdeas = ideas.slice(0, topIdeas).map((idea, index) => ({ rank: index + 1, ...idea }));
+
+  return {
+    scanned: scans.length,
+    scannedAt: new Date().toISOString(),
+    keywords,
+    keywordCoverage,
+    scans,
+    ideas: selectedIdeas,
+    recommendations: selectedIdeas.slice(0, 5).map((idea) => idea.action)
+  };
+}
+
+function recordResearchPulse(args) {
+  const pulse = args.pulse;
+  if (!pulse || typeof pulse !== 'object') throw new Error('pulse must be an object');
+
+  const outputDir = normalizeFsPath(args.outputDir || DEFAULT_RESEARCH_DIR);
+  const cadenceMinutes = Number.isFinite(args.cadenceMinutes) ? Math.floor(args.cadenceMinutes) : 10;
+  const stamp = toStamp(new Date());
+
+  fs.mkdirSync(outputDir, { recursive: true });
+  const outputPath = path.join(outputDir, `research-pulse-${stamp}.json`);
+
+  const payload = {
+    ...pulse,
+    persistedAt: new Date().toISOString(),
+    cadenceMinutes,
+    nextSuggestedRunAt: new Date(Date.now() + cadenceMinutes * 60 * 1000).toISOString()
+  };
+
+  fs.writeFileSync(outputPath, JSON.stringify(payload, null, 2));
+
+  return {
+    outputPath,
+    cadenceMinutes,
+    nextSuggestedRunAt: payload.nextSuggestedRunAt,
+    topIdeaCount: Array.isArray(pulse.ideas) ? pulse.ideas.length : 0
+  };
+}
+
 function inferWorkstreamsFromGoal(goal) {
   const lower = String(goal || '').toLowerCase();
   const streams = [];
@@ -2036,6 +2192,68 @@ function suggestSuccessCriteria(domain) {
     product: ['Scope aligned to outcomes', 'Milestones tracked', 'Dependencies resolved']
   };
   return map[domain] || map.product;
+}
+
+function compressText(text, maxChars) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, maxChars);
+}
+
+function extractActionableIdeas(sourceUrl, text, keywords) {
+  const t = String(text || '');
+  const lowered = t.toLowerCase();
+  const out = [];
+
+  const patterns = [
+    {
+      id: 'parallel-execution-wave',
+      title: 'Increase parallel execution wave capacity',
+      action: 'Add wave-aware scheduling and dynamic parallelism limits for multi-agent pods.',
+      trigger: /parallel|concurrent|queue|throughput/
+    },
+    {
+      id: 'contract-first-tooling',
+      title: 'Strengthen contract-first tool schemas',
+      action: 'Add stricter input/output schema checks and auto-generated contract tests for new tools.',
+      trigger: /schema|contract|validation|json-rpc/
+    },
+    {
+      id: 'continuous-evals-loop',
+      title: 'Expand continuous eval loop',
+      action: 'Run periodic eval suites after each improvement pulse and store trend snapshots.',
+      trigger: /evaluation|eval|benchmark|quality/
+    },
+    {
+      id: 'agent-role-routing',
+      title: 'Improve specialist role routing',
+      action: 'Route tasks to specialist pods by domain confidence and track assignment outcomes.',
+      trigger: /agent|role|orchestration|workflow/
+    },
+    {
+      id: 'security-guardrails',
+      title: 'Add stronger security guardrails',
+      action: 'Embed permission/risk classification checks before executing open-world or destructive tasks.',
+      trigger: /security|permission|risk|policy/
+    }
+  ];
+
+  let keywordBoost = 0;
+  for (const k of keywords) {
+    if (lowered.includes(k)) keywordBoost += 1;
+  }
+
+  for (const p of patterns) {
+    if (p.trigger.test(lowered)) {
+      out.push({
+        id: p.id,
+        sourceUrl,
+        title: p.title,
+        action: p.action,
+        score: 5 + keywordBoost
+      });
+    }
+  }
+
+  return out;
 }
 
 function validateJsonSchema(args) {
@@ -2188,6 +2406,35 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
 [ ] 11. Verify the server passes \`check_server_health\` after release commit.`;
   }
 
+    if (name === 'continuous_research_loop') {
+     const goal = args.goal || 'continuous MCP server and agent-system improvement';
+     const cadence = Number.isFinite(Number(args.cadenceMinutes)) ? Number(args.cadenceMinutes) : 10;
+     return `Continuous research loop for: ${goal}
+
+  Cadence: every ${cadence} minutes
+
+  1. Research pulse:
+    - Run \`research_improvement_ideas\` against MCP, AI tooling, and workflow sources.
+    - Capture top ideas ranked by signal score.
+
+  2. Persist and schedule:
+    - Run \`record_research_pulse\` with cadence=${cadence} to store snapshots and next-run timestamp.
+
+  3. Convert ideas to execution:
+    - Use \`agent_task_planner\` to turn top ideas into implementation steps.
+    - Use \`plan_specialist_assignments\` to assign specialist pods.
+    - Use \`build_collaboration_schedule\` for parallel execution waves.
+
+  4. Validate each wave:
+    - Run validation gates and tests after each implemented idea.
+    - Keep only improvements that pass quality gates.
+
+  5. Repeat indefinitely:
+    - At each pulse, compare new ideas to previous snapshots and prioritize net-new high-impact upgrades.
+
+  This loop keeps your system in nonstop autonomous improvement mode while retaining traceable decisions and stable quality.`;
+    }
+
   return `Unknown prompt: ${name}`;
 }
 
@@ -2204,7 +2451,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.2.0',
+      version: '0.3.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT

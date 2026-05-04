@@ -1,6 +1,6 @@
 # agent-ops-hub — AI Tool Reference (DOCS.md)
 
-Version: **0.2.0** | Port: **11200** (HTTP) + stdio | Tools: **27** | Prompts: **4**
+Version: **0.3.0** | Port: **11200** (HTTP) + stdio | Tools: **29** | Prompts: **5**
 
 > **For AI agents:** This is your primary orchestration server. Start here to plan tasks, validate work, compare server capabilities, track roadmaps, and analyze test artifacts. Use the prompts to get structured guidance before starting complex workflows.
 
@@ -18,12 +18,13 @@ Version: **0.2.0** | Port: **11200** (HTTP) + stdio | Tools: **27** | Prompts: *
 | Generate a changelog from git | `generate_changelog_entry` |
 | Track project roadmap tasks | `roadmap_tracker` |
 | Build a 40-role specialist team plan | `plan_specialist_assignments` |
+| Run recurring web intel pulse | `research_improvement_ideas` |
 | Check JS file syntax quality | `code_quality_gate` |
 | Get workflow guidance (prompt) | Prompt: `agent_ops_workflow` |
 
 ---
 
-## All 27 Tools
+## All 29 Tools
 
 ### Orchestration & Intelligence
 
@@ -218,6 +219,20 @@ Create a concurrent wave-based schedule from a specialist assignment plan.
 ```
 Returns: `{ waveCount, timeline: [...], handoffs: [...], recommendations: [...] }`
 
+#### `research_improvement_ideas`
+Run a web research pulse on MCP/AI/dev sources and extract ranked, actionable ideas.
+```json
+{ "urls": ["https://playwright.dev/docs/intro"], "keywords": ["agent", "workflow", "automation"], "topIdeas": 8 }
+```
+Returns: `{ scanned, scans: [...], ideas: [...], recommendations: [...] }`
+
+#### `record_research_pulse`
+Persist a research pulse snapshot and return suggested next run time.
+```json
+{ "pulse": { "scanned": 2, "ideas": [] }, "cadenceMinutes": 10 }
+```
+Returns: `{ outputPath, cadenceMinutes, nextSuggestedRunAt, topIdeaCount }`
+
 ---
 
 ### Release & Changelog
@@ -238,7 +253,7 @@ Returns: `{ version, date, commitCount, outputPath, notes }`
 
 ---
 
-## 4 Prompts
+## 5 Prompts
 
 ### `agent_ops_workflow`
 Get step-by-step guidance for using agent-ops-hub to orchestrate a complex goal.
@@ -256,6 +271,12 @@ Arguments: serverName (optional) — name of the server being validated
 Get a structured blueprint for running a software-company style specialist team (40-role catalog, pod planning, concurrent waves).
 ```
 Arguments: goal (optional), teamSize (optional)
+```
+
+### `continuous_research_loop`
+Get an operational playbook for nonstop improvement with recurring web research pulses and fast integration.
+```
+Arguments: goal (optional), cadenceMinutes (optional)
 ```
 
 ### `release_prep_checklist`
@@ -281,6 +302,6 @@ POST http://127.0.0.1:11200/mcp     → same as stdio JSON-RPC; body: { jsonrpc,
 cd agent-ops-hub
 npm install
 node mcp-server.js        # stdio mode
-node tests/run-all.js     # run all 11 test groups
+node tests/run-all.js     # run all 12 test groups
 node --check mcp-server.js # syntax check
 ```

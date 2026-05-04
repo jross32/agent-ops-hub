@@ -1,20 +1,20 @@
 {
-  "timestamp": "2026-05-04T03:34:35.388Z",
-  "runStamp": "2026-05-03_233428",
+  "timestamp": "2026-05-04T03:37:20.613Z",
+  "runStamp": "2026-05-03_233713",
   "testFile": "group-j-new-tools/test.js",
   "id": "group-j-new-tools",
   "status": "pass",
-  "durationMs": 263,
-  "notes": "validate_json_schema ✓, find_missing_tests (total=37, missing=37), code_quality_gate score=65 allPassed=true, roadmap_tracker ✓, scan_coverage=0/37",
+  "durationMs": 180,
+  "notes": "validate_json_schema ✓, find_missing_tests (total=40, missing=40), code_quality_gate score=60 allPassed=true, roadmap_tracker ✓, scan_coverage=0/40",
   "details": {
     "validatePass": true,
     "validateFail": true,
     "findMissing": {
-      "total": 37,
-      "missing": 37
+      "total": 40,
+      "missing": 40
     },
     "qualityGate": {
-      "score": 65,
+      "score": 60,
       "allPassed": true
     },
     "roadmapTracker": {
@@ -22,7 +22,7 @@
       "taskId": "t3"
     },
     "scanCoverage": {
-      "total": 37,
+      "total": 40,
       "covered": 0
     }
   }
