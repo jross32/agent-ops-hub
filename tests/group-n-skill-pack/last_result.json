@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-04T07:46:23.134Z",
-  "runStamp": "2026-05-04_034617",
+  "timestamp": "2026-05-04T07:52:13.888Z",
+  "runStamp": "2026-05-04_035204",
   "testFile": "group-n-skill-pack/test.js",
   "id": "group-n-skill-pack",
   "status": "pass",
-  "durationMs": 236,
+  "durationMs": 346,
   "notes": "skill-pack manifest skills=12, docsIndexUrls=106",
   "details": {
     "skillCount": 12,

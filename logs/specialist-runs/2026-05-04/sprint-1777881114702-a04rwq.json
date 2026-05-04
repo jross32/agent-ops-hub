@@ -1,0 +1,91 @@
+{
+  "sprintId": "sprint-1777881114702-a04rwq",
+  "writtenAt": "2026-05-04T07:51:54.725Z",
+  "sprintName": "live-sprint-r-roadmap-design",
+  "taskCount": 5,
+  "overallScore": 97,
+  "grade": "A",
+  "recommendation": "Excellent sprint quality. Outputs are specific, actionable, and well-structured.",
+  "perTaskScores": [
+    {
+      "specialistId": "backend_architect",
+      "taskTitle": "Design the next 5 roadmap tools for agent-ops-hub",
+      "wordCount": 422,
+      "scores": {
+        "specificity": 24,
+        "actionability": 25,
+        "coverage": 22,
+        "clarity": 25,
+        "domainBonus": 1
+      },
+      "totalScore": 97,
+      "maxPossible": 100,
+      "percentScore": 97,
+      "grade": "A"
+    },
+    {
+      "specialistId": "security_engineer",
+      "taskTitle": "Security hardening: top 5 missing controls",
+      "wordCount": 418,
+      "scores": {
+        "specificity": 25,
+        "actionability": 25,
+        "coverage": 22,
+        "clarity": 25,
+        "domainBonus": 1
+      },
+      "totalScore": 98,
+      "maxPossible": 100,
+      "percentScore": 98,
+      "grade": "A"
+    },
+    {
+      "specialistId": "qa_automation_engineer",
+      "taskTitle": "Test coverage gaps: 5 missing test categories",
+      "wordCount": 422,
+      "scores": {
+        "specificity": 25,
+        "actionability": 25,
+        "coverage": 22,
+        "clarity": 25,
+        "domainBonus": 2
+      },
+      "totalScore": 99,
+      "maxPossible": 100,
+      "percentScore": 99,
+      "grade": "A"
+    },
+    {
+      "specialistId": "docs_information_architect",
+      "taskTitle": "Documentation strategy for 55-tool MCP catalog",
+      "wordCount": 425,
+      "scores": {
+        "specificity": 23,
+        "actionability": 25,
+        "coverage": 22,
+        "clarity": 25,
+        "domainBonus": 2
+      },
+      "totalScore": 97,
+      "maxPossible": 100,
+      "percentScore": 97,
+      "grade": "A"
+    },
+    {
+      "specialistId": "performance_profiler",
+      "taskTitle": "Performance baseline and bottleneck analysis",
+      "wordCount": 403,
+      "scores": {
+        "specificity": 20,
+        "actionability": 25,
+        "coverage": 22,
+        "clarity": 25,
+        "domainBonus": 2
+      },
+      "totalScore": 94,
+      "maxPossible": 100,
+      "percentScore": 94,
+      "grade": "A"
+    }
+  ]
+}

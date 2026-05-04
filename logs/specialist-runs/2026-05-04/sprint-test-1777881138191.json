@@ -1,0 +1,21 @@
+{
+  "sprintId": "sprint-test-1777881138191",
+  "writtenAt": "2026-05-04T07:52:18.195Z",
+  "sprintName": "test-sprint-q",
+  "taskCount": 3,
+  "overallScore": 59,
+  "tasks": [
+    {
+      "specialistId": "backend_architect",
+      "taskTitle": "Review API design"
+    },
+    {
+      "specialistId": "security_engineer",
+      "taskTitle": "Security scan"
+    },
+    {
+      "specialistId": "qa_automation_engineer",
+      "taskTitle": "Test gap analysis"
+    }
+  ]
+}

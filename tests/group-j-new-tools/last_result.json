@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-05-04T07:46:22.309Z",
-  "runStamp": "2026-05-04_034617",
+  "timestamp": "2026-05-04T07:52:12.894Z",
+  "runStamp": "2026-05-04_035204",
   "testFile": "group-j-new-tools/test.js",
   "id": "group-j-new-tools",
   "status": "pass",
-  "durationMs": 210,
-  "notes": "validate_json_schema ✓, find_missing_tests (total=90, missing=90), code_quality_gate score=2 allPassed=true, roadmap_tracker ✓, scan_coverage=0/90",
+  "durationMs": 427,
+  "notes": "validate_json_schema ✓, find_missing_tests (total=90, missing=90), code_quality_gate score=1 allPassed=true, roadmap_tracker ✓, scan_coverage=0/90",
   "details": {
     "validatePass": true,
     "validateFail": true,
@@ -14,7 +14,7 @@
       "missing": 90
     },
     "qualityGate": {
-      "score": 2,
+      "score": 1,
       "allPassed": true
     },
     "roadmapTracker": {

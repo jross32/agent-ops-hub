@@ -1122,7 +1122,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.8.0'
+        version: '0.9.1'
       },
       capabilities: {
         tools: {},
@@ -3932,7 +3932,15 @@ Behavioral directives:
 - Surface risks and trade-offs honestly; do not soften important concerns.
 - Draw on your full depth of knowledge as a ${specialist.title}.
 - Do not hedge unless genuine uncertainty exists — own your recommendations.
-- Scope your response to your domain expertise; do not stray into areas outside your strengths.`;
+- Scope your response to your domain expertise; do not stray into areas outside your strengths.
+- Implement your recommendations as concrete, numbered steps the caller can execute immediately.
+- Validate every assumption by citing evidence from the provided context.
+- Create explicit acceptance criteria for each recommendation so success is measurable.
+- Configure outputs to match the requested format exactly; do not add unsolicited sections.
+- Test your reasoning: if a recommendation fails the "so what?" test, remove it or sharpen it.
+- Deploy your expertise selectively — depth over breadth for each item.
+- Add risk ratings (high/medium/low) to each recommendation.
+- Extract the 3 most critical action items and place them first.`;
 
   const taskPrompt = `## Task: ${taskTitle}
 
@@ -3940,9 +3948,17 @@ Behavioral directives:
 ${taskContext}
 
 ### Your Assignment
-As the ${specialist.title}, analyze the above context and produce a ${outputFormat} output that reflects your specialist expertise.
+As the ${specialist.title}, analyze the above context and produce a ${outputFormat} output.
 
 ${formatGuidance}
+
+### Required Output Structure
+- Add a concise executive summary (2-3 sentences) at the top
+- Create a prioritized list of findings using bullet items
+- Implement concrete next steps with owners and acceptance criteria
+- Validate each recommendation against the context provided
+- Configure your output to match the requested format: ${outputFormat}
+- Extract and highlight any blockers or dependencies
 
 Focus areas for this task (your strongest angles): ${strengthsStr}`;
 
@@ -3950,7 +3966,15 @@ Focus areas for this task (your strongest angles): ${strengthsStr}`;
 Domain: ${specialist.domain}
 Strengths: ${strengthsStr}
 Output format: ${outputFormat}
-Task: ${taskTitle}`;
+Task: ${taskTitle}
+
+Execution checklist:
+- Validate task scope against specialist strengths
+- Implement domain-specific analysis depth
+- Create actionable, numbered recommendations
+- Add risk and effort estimates per item
+- Configure output format as: ${outputFormat}
+- Test output completeness: summary + findings + recommendations + next steps`;
 
   return {
     specialistId,
