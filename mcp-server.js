@@ -798,6 +798,20 @@ const TOOLS = [
       required: ['filePath'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'semantic_tool_search',
+    description: 'Fuzzy full-text search across all tool names and descriptions in a running MCP server. Returns ranked matches with relevance scores — useful for discovering which tool to use for a given task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query:      { type: 'string', description: 'Natural language query or keywords to search for (e.g. "git churn", "scrape page", "run tests")' },
+        serverPath: { type: 'string', description: 'Absolute path to an mcp-server.js file to search (defaults to this server)' },
+        maxResults: { type: 'number', description: 'Max results to return (default 10)' }
+      },
+      required: ['query'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1048,6 +1062,8 @@ async function runTool(name, args) {
       return codeComplexityScan(args);
     case 'estimate_refactor_risk':
       return estimateRefactorRisk(args);
+    case 'semantic_tool_search':
+      return semanticToolSearch(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3640,6 +3656,75 @@ function regressionRootCauseAnalysis(args) {
     stackTrace: stackLines,
     failedTestNames: testNames.slice(0, 20),
     recommendation: topCause.hint
+  };
+}
+
+function semanticToolSearch(args) {
+  const query      = (args.query || '').toLowerCase().trim();
+  const maxResults = Number.isFinite(args.maxResults) ? args.maxResults : 10;
+
+  if (!query) {
+    throw new Error('query is required and must not be empty');
+  }
+
+  // Determine which tool list to search
+  let toolList = TOOLS;
+  if (args.serverPath) {
+    const sp = normalizeFsPath(args.serverPath);
+    try {
+      const src = fs.readFileSync(sp, 'utf8');
+      // Extract tool objects via simple name+description extraction
+      const nameMatches = [...src.matchAll(/name:\s*'([^']+)'/g)].map((m) => m[1]);
+      const descMatches = [...src.matchAll(/description:\s*'([^']+)'/g)].map((m) => m[1]);
+      toolList = nameMatches.slice(0, descMatches.length).map((name, i) => ({
+        name,
+        description: descMatches[i] || ''
+      }));
+    } catch (err) {
+      throw new Error(`Cannot read serverPath: ${err.message}`);
+    }
+  }
+
+  // Tokenize query
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  // Score each tool
+  const scored = toolList.map((tool) => {
+    const haystack = `${tool.name} ${tool.description || ''}`.toLowerCase();
+    let score = 0;
+
+    for (const token of tokens) {
+      // Exact word boundary match = 3 pts, substring = 1 pt
+      const wordBoundary = new RegExp(`(?:^|[^a-z])${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^a-z]|$)`);
+      if (wordBoundary.test(haystack)) {
+        score += 3;
+      } else if (haystack.includes(token)) {
+        score += 1;
+      }
+      // Bonus if token appears in the name specifically
+      if (tool.name.toLowerCase().includes(token)) {
+        score += 2;
+      }
+    }
+
+    return { name: tool.name, description: tool.description || '', score };
+  });
+
+  const results = scored
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxResults)
+    .map((r) => ({
+      name: r.name,
+      description: r.description.length > 120 ? r.description.slice(0, 117) + '...' : r.description,
+      relevanceScore: r.score
+    }));
+
+  return {
+    query,
+    totalToolsSearched: toolList.length,
+    matchCount: results.length,
+    results
   };
 }
 
