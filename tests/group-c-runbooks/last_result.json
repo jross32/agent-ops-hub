@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-05-04T03:57:09.780Z",
-  "runStamp": "2026-05-03_235708",
+  "timestamp": "2026-05-04T07:18:22.041Z",
+  "runStamp": "2026-05-04_031820",
   "testFile": "group-c-runbooks/test.js",
   "id": "group-c-runbooks",
   "status": "pass",
   "durationMs": 11,
-  "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_235709.json",
+  "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260504_031822.json",
   "details": {
-    "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_235709.json",
+    "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260504_031822.json",
     "stepCount": 2
   }
 }

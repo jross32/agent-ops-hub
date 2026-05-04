@@ -1,14 +1,14 @@
 {
-  "status": "paused",
-  "control": "paused",
-  "totalCycles": 2,
-  "triggerNow": true,
-  "nextPulseAt": "2026-05-04T03:57:16.419Z",
-  "pauseReason": "test-pause",
-  "updatedAt": "2026-05-04T03:57:16.419Z",
+  "status": "idle",
+  "control": "running",
+  "totalCycles": 3,
+  "triggerNow": false,
+  "nextPulseAt": "2026-05-04T07:28:31.668Z",
+  "pauseReason": null,
+  "updatedAt": "2026-05-04T07:18:29.976Z",
   "goal": "Continuously improve MCP server quality and workflow speed",
   "cadenceMinutes": 10,
-  "lastStartedAt": "2026-05-04T03:57:16.166Z",
-  "lastCyclePath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\loop-state-tests\\cycles\\cycle-0002-20260503_235716.json",
-  "lastCycleCompletedAt": "2026-05-04T03:57:16.403Z"
+  "lastStartedAt": "2026-05-04T07:18:29.978Z",
+  "lastCyclePath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\loop-state-tests\\cycles\\cycle-0003-20260504_031831.json",
+  "lastCycleCompletedAt": "2026-05-04T07:18:31.664Z"
 }

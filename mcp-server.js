@@ -714,6 +714,62 @@ const TOOLS = [
       required: ['schema', 'data'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'drift_detection_check',
+    description: 'Detect drift in a repository: uncommitted changes, untracked files, divergence from remote, and stale package-lock. Returns a severity-ranked drift report.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoPath: { type: 'string', description: 'Absolute path to the git repository to inspect' },
+        checkRemote: { type: 'boolean', description: 'Whether to fetch and compare with remote HEAD (default true)' },
+        checkDeps: { type: 'boolean', description: 'Whether to check if node_modules is stale vs package.json (default true)' }
+      },
+      required: ['repoPath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'multi_repo_sync_status',
+    description: 'Check git sync status (ahead/behind/dirty) across all MCP server repos in a root directory. Returns a summary table with per-repo state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath: { type: 'string', description: 'Root directory containing multiple git repos (default: MCP_ROOT)' },
+        maxRepos: { type: 'number', minimum: 1, maximum: 50, description: 'Max repos to check (default 20)' },
+        fetchFirst: { type: 'boolean', description: 'Run git fetch --all before status checks (default false — uses cached remote refs)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'generate_changelog',
+    description: 'Generate a structured CHANGELOG for a git repo between two refs (or from the last tag to HEAD). Returns Markdown-formatted entries grouped by type (feat/fix/chore).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoPath: { type: 'string', description: 'Absolute path to the git repository' },
+        fromRef:  { type: 'string', description: 'Starting git ref (tag, SHA, or branch). Defaults to last tag.' },
+        toRef:    { type: 'string', description: 'Ending git ref (default HEAD)' },
+        maxCommits: { type: 'number', minimum: 1, maximum: 500, description: 'Maximum commits to include (default 100)' }
+      },
+      required: ['repoPath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'regression_root_cause_analysis',
+    description: 'Analyze test failure output (stdout/stderr text) and classify root causes into structured categories: assertion errors, missing modules, timeouts, auth failures, network issues, and more.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        failureText: { type: 'string', description: 'Full test output text (stdout + stderr) from a failed test run', maxLength: 50000 },
+        suiteName:   { type: 'string', description: 'Optional name of the test suite for context' },
+        repoPath:    { type: 'string', description: 'Optional repo path — used to enrich analysis with recent git changes' }
+      },
+      required: ['failureText'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -952,6 +1008,14 @@ async function runTool(name, args) {
       return draftSkillPackManifest(args);
     case 'validate_json_schema':
       return validateJsonSchema(args);
+    case 'drift_detection_check':
+      return driftDetectionCheck(args);
+    case 'multi_repo_sync_status':
+      return multiRepoSyncStatus(args);
+    case 'generate_changelog':
+      return generateChangelog(args);
+    case 'regression_root_cause_analysis':
+      return regressionRootCauseAnalysis(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3205,6 +3269,345 @@ function validateJsonSchema(args) {
     valid: errors.length === 0,
     errorCount: errors.length,
     errors
+  };
+}
+
+async function driftDetectionCheck(args) {
+  const repoPath = normalizeFsPath(args.repoPath);
+  const checkRemote = args.checkRemote !== false;
+  const checkDeps   = args.checkDeps   !== false;
+
+  if (!fs.existsSync(path.join(repoPath, '.git'))) {
+    throw new Error(`Not a git repository: ${repoPath}`);
+  }
+
+  const findings = [];
+
+  // 1. Uncommitted changes
+  const statusResult = await runShellCommand('git status --porcelain', repoPath, 15000);
+  const statusLines = (statusResult.stdout || '').trim().split('\n').filter(Boolean);
+  const dirty = statusLines.length > 0;
+  if (dirty) {
+    const modified  = statusLines.filter((l) => l.match(/^.M|^M/)).length;
+    const untracked = statusLines.filter((l) => l.startsWith('??')).length;
+    const staged    = statusLines.filter((l) => l.match(/^[MADRCU]/)).length;
+    findings.push({
+      severity: 'warning',
+      category: 'uncommitted_changes',
+      detail: `${statusLines.length} dirty files (${staged} staged, ${modified} modified, ${untracked} untracked)`,
+      files: statusLines.slice(0, 20).map((l) => l.trim())
+    });
+  }
+
+  // 2. Remote divergence
+  if (checkRemote) {
+    const branchResult = await runShellCommand('git rev-parse --abbrev-ref HEAD', repoPath, 10000);
+    const branch = (branchResult.stdout || '').trim();
+    const revListResult = await runShellCommand(
+      `git rev-list --left-right --count HEAD...origin/${branch}`,
+      repoPath, 15000
+    );
+    if (revListResult.exitCode === 0) {
+      const parts = (revListResult.stdout || '').trim().split(/\s+/);
+      const ahead  = parseInt(parts[0], 10) || 0;
+      const behind = parseInt(parts[1], 10) || 0;
+      if (ahead > 0) {
+        findings.push({
+          severity: 'info',
+          category: 'ahead_of_remote',
+          detail: `${ahead} local commits not yet pushed to origin/${branch}`
+        });
+      }
+      if (behind > 0) {
+        findings.push({
+          severity: 'warning',
+          category: 'behind_remote',
+          detail: `${behind} remote commits not yet pulled from origin/${branch}`
+        });
+      }
+    }
+  }
+
+  // 3. Stale dependencies
+  if (checkDeps) {
+    const pkgPath  = path.join(repoPath, 'package.json');
+    const lockPath = path.join(repoPath, 'package-lock.json');
+    const nmPath   = path.join(repoPath, 'node_modules');
+    if (fs.existsSync(pkgPath) && fs.existsSync(lockPath) && fs.existsSync(nmPath)) {
+      const pkgMtime  = fs.statSync(pkgPath).mtimeMs;
+      const lockMtime = fs.statSync(lockPath).mtimeMs;
+      const nmMtime   = fs.statSync(nmPath).mtimeMs;
+      if (pkgMtime > nmMtime || lockMtime > nmMtime) {
+        findings.push({
+          severity: 'warning',
+          category: 'stale_node_modules',
+          detail: 'package.json or package-lock.json is newer than node_modules — may need npm install'
+        });
+      }
+    }
+  }
+
+  const severity = findings.some((f) => f.severity === 'warning')
+    ? 'warning'
+    : findings.length > 0 ? 'info' : 'clean';
+
+  return {
+    repoPath,
+    severity,
+    driftDetected: findings.length > 0,
+    findingCount: findings.length,
+    findings
+  };
+}
+
+async function multiRepoSyncStatus(args) {
+  const rootPath  = normalizeFsPath(args.rootPath || DEFAULT_MCP_ROOT);
+  const maxRepos  = Math.min(args.maxRepos || 20, 50);
+  const fetchFirst = args.fetchFirst === true;
+
+  if (!fs.existsSync(rootPath)) throw new Error(`Root path not found: ${rootPath}`);
+
+  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+  const repoDirs = entries
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(rootPath, e.name, '.git')))
+    .map((e) => path.join(rootPath, e.name))
+    .slice(0, maxRepos);
+
+  if (repoDirs.length === 0) {
+    return { rootPath, repos: [], summary: 'No git repos found under root path.' };
+  }
+
+  const results = await Promise.all(repoDirs.map(async (repoPath) => {
+    const name = path.basename(repoPath);
+    try {
+      if (fetchFirst) {
+        await runShellCommand('git fetch --all --quiet', repoPath, 20000);
+      }
+      const [statusRes, branchRes, logRes] = await Promise.all([
+        runShellCommand('git status --porcelain', repoPath, 10000),
+        runShellCommand('git rev-parse --abbrev-ref HEAD', repoPath, 5000),
+        runShellCommand('git log -1 --format="%h %s" HEAD', repoPath, 5000)
+      ]);
+      const branch      = (branchRes.stdout || '').trim();
+      const dirty       = (statusRes.stdout || '').trim().split('\n').filter(Boolean).length;
+      const lastCommit  = (logRes.stdout || '').trim();
+
+      const revRes = await runShellCommand(
+        `git rev-list --left-right --count HEAD...origin/${branch}`,
+        repoPath, 10000
+      );
+      let ahead = 0, behind = 0;
+      if (revRes.exitCode === 0) {
+        const parts = (revRes.stdout || '').trim().split(/\s+/);
+        ahead  = parseInt(parts[0], 10) || 0;
+        behind = parseInt(parts[1], 10) || 0;
+      }
+
+      const state = dirty > 0 ? 'dirty' : ahead > 0 ? 'ahead' : behind > 0 ? 'behind' : 'clean';
+      return { name, branch, state, dirty, ahead, behind, lastCommit };
+    } catch (err) {
+      return { name, branch: '?', state: 'error', dirty: 0, ahead: 0, behind: 0, lastCommit: '', error: err.message };
+    }
+  }));
+
+  const summary = {
+    total: results.length,
+    clean:  results.filter((r) => r.state === 'clean').length,
+    dirty:  results.filter((r) => r.state === 'dirty').length,
+    ahead:  results.filter((r) => r.state === 'ahead').length,
+    behind: results.filter((r) => r.state === 'behind').length,
+    errors: results.filter((r) => r.state === 'error').length
+  };
+
+  return { rootPath, repos: results, summary };
+}
+
+async function generateChangelog(args) {
+  const repoPath   = normalizeFsPath(args.repoPath);
+  const toRef      = args.toRef    || 'HEAD';
+  const maxCommits = Math.min(args.maxCommits || 100, 500);
+
+  if (!fs.existsSync(path.join(repoPath, '.git'))) {
+    throw new Error(`Not a git repository: ${repoPath}`);
+  }
+
+  // Determine fromRef
+  let fromRef = args.fromRef;
+  if (!fromRef) {
+    const tagRes = await runShellCommand('git describe --tags --abbrev=0 HEAD^', repoPath, 10000);
+    fromRef = (tagRes.exitCode === 0 && tagRes.stdout.trim()) ? tagRes.stdout.trim() : null;
+  }
+
+  const range = fromRef ? `${fromRef}..${toRef}` : toRef;
+  const logCmd = `git log ${range} --format="%H|%s|%an|%ad" --date=short --max-count=${maxCommits}`;
+  const logRes = await runShellCommand(logCmd, repoPath, 15000);
+
+  if (logRes.exitCode !== 0) {
+    throw new Error(`git log failed: ${logRes.stderr}`);
+  }
+
+  const lines = (logRes.stdout || '').trim().split('\n').filter(Boolean);
+  const commits = lines.map((l) => {
+    const parts = l.split('|');
+    return { sha: (parts[0] || '').slice(0, 8), subject: parts[1] || '', author: parts[2] || '', date: parts[3] || '' };
+  });
+
+  // Classify by conventional commit prefix
+  const categories = {
+    feat:     { label: '### Features',       items: [] },
+    fix:      { label: '### Bug Fixes',      items: [] },
+    perf:     { label: '### Performance',    items: [] },
+    refactor: { label: '### Refactors',      items: [] },
+    test:     { label: '### Tests',          items: [] },
+    docs:     { label: '### Documentation', items: [] },
+    chore:    { label: '### Chores',         items: [] },
+    other:    { label: '### Other',          items: [] }
+  };
+
+  for (const c of commits) {
+    const m = c.subject.match(/^(\w+)(\(.+?\))?(!)?:\s*(.*)/);
+    const type = m ? m[1].toLowerCase() : 'other';
+    const msg  = m ? m[4] : c.subject;
+    const cat  = categories[type] || categories.other;
+    cat.items.push(`- ${msg} (${c.sha})`);
+  }
+
+  const today     = new Date().toISOString().slice(0, 10);
+  const rangeLabel = fromRef ? `${fromRef}..${toRef}` : toRef;
+  const mdParts   = [`## Changelog — ${rangeLabel} (${today})`, ''];
+
+  for (const cat of Object.values(categories)) {
+    if (cat.items.length > 0) {
+      mdParts.push(cat.label, ...cat.items, '');
+    }
+  }
+
+  return {
+    repoPath,
+    fromRef: fromRef || '(beginning)',
+    toRef,
+    commitCount: commits.length,
+    markdown: mdParts.join('\n'),
+    commits
+  };
+}
+
+function regressionRootCauseAnalysis(args) {
+  const text      = args.failureText || '';
+  const suite     = args.suiteName || 'unknown';
+  const repoPath  = args.repoPath || null;
+
+  // Root cause pattern matchers
+  const PATTERNS = [
+    {
+      category: 'assertion_error',
+      severity: 'high',
+      patterns: [/AssertionError/i, /Expected .+ to (equal|be|match)/i, /assert\.(strictEqual|deepEqual|ok)/i, /expected .+ got/i],
+      hint: 'A test assertion failed — expected value did not match actual value. Review the specific assertion and the code path it exercises.'
+    },
+    {
+      category: 'missing_module',
+      severity: 'high',
+      patterns: [/Cannot find module/i, /MODULE_NOT_FOUND/i, /Error: Cannot resolve/i],
+      hint: 'A required module or file is missing. Run npm install or check the import path.'
+    },
+    {
+      category: 'timeout',
+      severity: 'medium',
+      patterns: [/Timeout.*exceeded/i, /timed out/i, /ETIMEDOUT/i, /Test Timeout/i],
+      hint: 'An async operation or test exceeded its time limit. Check for slow I/O, network calls, or infinite loops.'
+    },
+    {
+      category: 'auth_failure',
+      severity: 'high',
+      patterns: [/401|403|Unauthorized|Forbidden|Invalid credentials/i, /auth.*fail/i, /login.*fail/i],
+      hint: 'Authentication or authorization failed. Verify credentials, session tokens, and permission scopes.'
+    },
+    {
+      category: 'network_error',
+      severity: 'medium',
+      patterns: [/ECONNREFUSED/i, /ENOTFOUND/i, /ECONNRESET/i, /fetch.*failed/i, /getaddrinfo/i],
+      hint: 'A network connection failed. Check if the server is running, the URL is correct, and firewalls are not blocking.'
+    },
+    {
+      category: 'syntax_error',
+      severity: 'high',
+      patterns: [/SyntaxError/i, /Unexpected token/i, /Invalid or unexpected token/i],
+      hint: 'A JavaScript syntax error was encountered. Check the file indicated in the stack trace.'
+    },
+    {
+      category: 'type_error',
+      severity: 'high',
+      patterns: [/TypeError/i, /is not a function/i, /Cannot read propert/i, /undefined is not/i],
+      hint: 'A runtime type error occurred — likely a null/undefined access or wrong type passed to a function.'
+    },
+    {
+      category: 'reference_error',
+      severity: 'medium',
+      patterns: [/ReferenceError/i, /is not defined/i],
+      hint: 'A variable or identifier is not defined in scope. Check for typos or missing imports.'
+    },
+    {
+      category: 'permission_error',
+      severity: 'medium',
+      patterns: [/EACCES/i, /EPERM/i, /permission denied/i, /access.*denied/i],
+      hint: 'File system permission error. Check directory/file permissions or run with elevated privileges.'
+    },
+    {
+      category: 'out_of_memory',
+      severity: 'critical',
+      patterns: [/heap out of memory/i, /FATAL ERROR.*Allocation failed/i, /JavaScript heap/i],
+      hint: 'Process ran out of memory. Increase --max-old-space-size or reduce memory usage in the test.'
+    },
+    {
+      category: 'process_exit',
+      severity: 'high',
+      patterns: [/process.*exit.*code [^0]/i, /exited with code [^0]/i, /non-zero exit/i],
+      hint: 'A child process or the test runner exited with a non-zero exit code. Check the output above for the specific error.'
+    }
+  ];
+
+  const matched = [];
+  for (const rule of PATTERNS) {
+    if (rule.patterns.some((p) => p.test(text))) {
+      // Extract a context snippet around the first match
+      let snippet = '';
+      for (const p of rule.patterns) {
+        const m = text.match(p);
+        if (m) {
+          const idx = text.indexOf(m[0]);
+          snippet = text.slice(Math.max(0, idx - 80), idx + 200).replace(/\n+/g, ' ').trim();
+          break;
+        }
+      }
+      matched.push({ category: rule.category, severity: rule.severity, hint: rule.hint, snippet });
+    }
+  }
+
+  // Extract stack trace lines
+  const stackLines = text.split('\n').filter((l) => /^\s+at /.test(l)).slice(0, 10).map((l) => l.trim());
+
+  // Extract test names from common runners
+  const testNames = [];
+  for (const m of text.matchAll(/✗|✘|FAIL|not ok\s+\d+\s+(.+)/gi)) {
+    if (m[1]) testNames.push(m[1].trim());
+  }
+
+  const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+  matched.sort((a, b) => (severityOrder[b.severity] || 0) - (severityOrder[a.severity] || 0));
+
+  const topCause = matched[0] || { category: 'unknown', severity: 'low', hint: 'No known pattern matched. Manual inspection required.', snippet: '' };
+
+  return {
+    suite,
+    repoPath,
+    primaryCause: topCause.category,
+    primarySeverity: topCause.severity,
+    totalPatternsMatched: matched.length,
+    rootCauses: matched,
+    stackTrace: stackLines,
+    failedTestNames: testNames.slice(0, 20),
+    recommendation: topCause.hint
   };
 }
 
