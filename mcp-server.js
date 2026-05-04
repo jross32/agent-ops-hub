@@ -1297,6 +1297,25 @@ const TOOLS = [
       },
       additionalProperties: false
     }
+  },
+  {
+    name: 'run_ai_benchmark',
+    description: 'Run a structured AI benchmark across 5 quality categories (tool_accuracy, test_suite_health, sprint_output_quality, api_availability, response_latency) and save results to tests/logs/ai-benchmarks.json',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        categories: {
+          type: 'array',
+          items: { type: 'string', enum: ['tool_accuracy', 'test_suite_health', 'sprint_output_quality', 'api_availability', 'response_latency'] },
+          description: 'Limit to specific categories (default: all 5)'
+        },
+        saveResults: {
+          type: 'boolean',
+          description: 'Whether to persist results to ai-benchmarks.json (default true)'
+        }
+      },
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1726,6 +1745,8 @@ async function _dispatchTool(name, args) {
       return await runEvalLoop(args);
     case 'replay_last_sprint':
       return await replayLastSprint(args);
+    case 'run_ai_benchmark':
+      return await runAiBenchmark(args);
     default: {
       // Fallback: check dynamically registered tools
       const dynHandler = _dynamicHandlers.get(name);
@@ -6320,6 +6341,195 @@ async function replayLastSprint(args) {
   };
 }
 
+async function runAiBenchmark(args) {
+  const saveResults     = args && args.saveResults !== false;
+  const categoryFilter  = Array.isArray(args && args.categories) ? args.categories : null;
+
+  const LOGS_DIR  = path.join(__dirname, 'tests', 'logs');
+  const BENCH_LOG = path.join(LOGS_DIR, 'ai-benchmarks.json');
+  const LATEST    = path.join(LOGS_DIR, 'latest_ai_benchmark.json');
+
+  // Helper: call a tool via the in-process handleTool
+  async function localTool(name, toolArgs) {
+    try {
+      const result = await handleTool(name, toolArgs || {});
+      const text = result && result.content && result.content[0] && result.content[0].text;
+      return text ? JSON.parse(text) : result;
+    } catch (e) {
+      return { __error: e.message };
+    }
+  }
+
+  const results = {};
+
+  // ── 1. tool_accuracy ──────────────────────────────────────────────────────
+  if (!categoryFilter || categoryFilter.includes('tool_accuracy')) {
+    const checks = [];
+    const checkTool = async (toolName, validator) => {
+      try {
+        const t0 = Date.now();
+        const r = await localTool(toolName, {});
+        const ms = Date.now() - t0;
+        const ok = !r.__error && validator(r);
+        checks.push({ tool: toolName, ok, ms, detail: r.__error || (ok ? 'ok' : 'bad shape') });
+      } catch (e) {
+        checks.push({ tool: toolName, ok: false, detail: e.message });
+      }
+    };
+
+    await checkTool('export_tool_catalog', r => typeof r === 'object' && !r.__error);
+    await checkTool('get_memory', r => typeof r === 'object');
+    await checkTool('get_tool_metrics', r => typeof r === 'object' && !r.__error);
+    await checkTool('list_loaded_skill_packs', r => typeof r === 'object' && !r.__error);
+    await checkTool('get_autonomous_loop_state', r => typeof r === 'object');
+
+    const passed = checks.filter(c => c.ok).length;
+    results.tool_accuracy = {
+      score:   Math.round((passed / checks.length) * 100),
+      passed,
+      total:   checks.length,
+      checks,
+    };
+  }
+
+  // ── 2. test_suite_health ──────────────────────────────────────────────────
+  if (!categoryFilter || categoryFilter.includes('test_suite_health')) {
+    const logPath = path.join(LOGS_DIR, 'latest_ai.json');
+    if (!fs.existsSync(logPath)) {
+      results.test_suite_health = { score: 0, detail: 'No test log found', passRate: 0 };
+    } else {
+      try {
+        const raw  = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+        const s    = raw.summary || {};
+        const rate = s.total > 0 ? s.passed / s.total : 0;
+        results.test_suite_health = {
+          score:     Math.round(rate * 100),
+          passRate:  Math.round(rate * 100),
+          passed:    s.passed || 0,
+          total:     s.total  || 0,
+          failed:    s.failed || 0,
+          timestamp: raw.timestamp,
+        };
+      } catch (e) {
+        results.test_suite_health = { score: 0, detail: 'Parse error: ' + e.message, passRate: 0 };
+      }
+    }
+  }
+
+  // ── 3. sprint_output_quality ──────────────────────────────────────────────
+  if (!categoryFilter || categoryFilter.includes('sprint_output_quality')) {
+    try {
+      const hist = await localTool('get_sprint_quality_trend', {});
+      const sprints = Array.isArray(hist) ? hist : (hist && hist.trend ? hist.trend : (hist && hist.sprints ? hist.sprints : []));
+      const scores = sprints
+        .map(s => {
+          if (typeof s.avgScore === 'number') return s.avgScore;
+          if (typeof s.score   === 'number') return s.score;
+          const gradeMap = { 'A+':100, A:95, 'A-':90, 'B+':87, B:83, 'B-':80, 'C+':77, C:73, 'C-':70 };
+          return gradeMap[s.grade] || null;
+        })
+        .filter(v => v !== null);
+
+      if (scores.length === 0) {
+        results.sprint_output_quality = { score: 50, detail: 'No scored sprints found', sprintCount: sprints.length };
+      } else {
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        results.sprint_output_quality = {
+          score:        Math.round(avg),
+          avgScore:     Math.round(avg * 10) / 10,
+          sprintCount:  sprints.length,
+          scoredSprints: scores.length,
+        };
+      }
+    } catch (e) {
+      results.sprint_output_quality = { score: 0, detail: e.message };
+    }
+  }
+
+  // ── 4. api_availability ───────────────────────────────────────────────────
+  if (!categoryFilter || categoryFilter.includes('api_availability')) {
+    const HUB_PORT = HTTP_PORT;
+    const endpoints = [
+      { path: '/health', expectedStatus: 200 },
+      { path: '/api/test-results', expectedStatus: 200 },
+      { path: '/events/recent', expectedStatus: 200 },
+      { path: '/', expectedStatus: 200 },
+    ];
+    const checks = [];
+    for (const ep of endpoints) {
+      await new Promise((resolve) => {
+        const req = require('http').request(
+          { hostname: '127.0.0.1', port: HUB_PORT, path: ep.path, method: 'GET' },
+          (res) => { res.resume(); checks.push({ path: ep.path, ok: res.statusCode === ep.expectedStatus, statusCode: res.statusCode }); resolve(); }
+        );
+        req.on('error', (e) => { checks.push({ path: ep.path, ok: false, error: e.message }); resolve(); });
+        req.setTimeout(5000, () => { req.destroy(); checks.push({ path: ep.path, ok: false, error: 'timeout' }); resolve(); });
+        req.end();
+      });
+    }
+    const passed = checks.filter(c => c.ok).length;
+    results.api_availability = {
+      score:    Math.round((passed / checks.length) * 100),
+      passed,
+      total:    checks.length,
+      endpoints: checks,
+    };
+  }
+
+  // ── 5. response_latency ───────────────────────────────────────────────────
+  if (!categoryFilter || categoryFilter.includes('response_latency')) {
+    const trials = [];
+    for (const toolName of ['export_tool_catalog', 'get_memory', 'get_tool_metrics']) {
+      const t0 = Date.now();
+      try {
+        await localTool(toolName, {});
+        trials.push({ tool: toolName, ms: Date.now() - t0 });
+      } catch (e) {
+        trials.push({ tool: toolName, ms: null, error: e.message });
+      }
+    }
+    const valid = trials.filter(t => t.ms !== null);
+    if (valid.length === 0) {
+      results.response_latency = { score: 0, detail: 'All latency checks failed', trials };
+    } else {
+      const avg = valid.reduce((a, b) => a + b.ms, 0) / valid.length;
+      const latencyScore =
+        avg <= 100 ? 100 : avg <= 300 ? 90 : avg <= 500 ? 75 :
+        avg <= 1000 ? 60 : avg <= 2000 ? 40 : 20;
+      results.response_latency = { score: latencyScore, avgMs: Math.round(avg), maxMs: Math.max(...valid.map(t => t.ms)), trials };
+    }
+  }
+
+  // ── Compute overall ───────────────────────────────────────────────────────
+  const catScores = Object.values(results).map(c => c.score);
+  const overall   = catScores.length ? Math.round(catScores.reduce((a, b) => a + b, 0) / catScores.length) : 0;
+  const grade     = overall >= 95 ? 'A+' : overall >= 90 ? 'A'  : overall >= 85 ? 'A-' :
+                    overall >= 80 ? 'B+' : overall >= 75 ? 'B'  : overall >= 70 ? 'B-' :
+                    overall >= 65 ? 'C+' : overall >= 60 ? 'C'  : 'D';
+
+  const record = {
+    timestamp:  new Date().toISOString(),
+    model:      'Claude Sonnet 4.6',
+    version:    '1.0',
+    overall,
+    grade,
+    scores:     Object.fromEntries(Object.entries(results).map(([k, v]) => [k, v.score])),
+    categories: results,
+  };
+
+  // ── Persist ───────────────────────────────────────────────────────────────
+  if (saveResults) {
+    if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
+    let history = [];
+    if (fs.existsSync(BENCH_LOG)) { try { history = JSON.parse(fs.readFileSync(BENCH_LOG, 'utf8')); } catch { history = []; } }
+    history.push(record);
+    fs.writeFileSync(BENCH_LOG, JSON.stringify(history, null, 2));
+    fs.writeFileSync(LATEST, JSON.stringify(record, null, 2));
+  }
+
+  return record;
+}
+
 async function listAvailableServers(args) {
   const rootPath = normalizeFsPath(args && args.rootPath ? args.rootPath : 'C:\\Users\\justi\\mcp-servers');
   const checkHealth = args && args.checkHealth !== false;
@@ -7129,6 +7339,40 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/test-results' && method === 'GET') {
+    const logPath = path.join(__dirname, 'tests', 'logs', 'latest_ai.json');
+    if (!fs.existsSync(logPath)) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ available: false, message: 'No test results yet — run the test suite first.' }));
+      return;
+    }
+    try {
+      const raw = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+      const summary = raw.summary || {};
+      const failures = (raw.tests || []).filter(t => t.status === 'fail').map(t => ({
+        name: t.name, error: t.error, duration_ms: t.duration_ms
+      }));
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        available:    true,
+        timestamp:    raw.timestamp,
+        suite:        raw.suite,
+        total:        summary.total,
+        passed:       summary.passed,
+        failed:       summary.failed,
+        skipped:      summary.skipped,
+        duration_ms:  summary.duration_ms,
+        passRate:     summary.total > 0 ? Math.round(summary.passed / summary.total * 100) : 0,
+        failures,
+        label:        `${summary.passed} passed / ${summary.failed} failed`,
+      }));
+    } catch (e) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: 'Failed to read test log: ' + e.message }));
+    }
+    return;
+  }
+
   if (url === '/mcp' && method === 'POST') {
     let body = '';
     req.on('data', (chunk) => { body += chunk.toString('utf8'); });
@@ -7160,8 +7404,34 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/ai-benchmarks' && method === 'GET') {
+    const benchLog = path.join(__dirname, 'tests', 'logs', 'ai-benchmarks.json');
+    const latestLog = path.join(__dirname, 'tests', 'logs', 'latest_ai_benchmark.json');
+    if (!fs.existsSync(benchLog)) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ available: false, message: 'No benchmark results yet — run run_ai_benchmark first.', history: [] }));
+      return;
+    }
+    try {
+      const history = JSON.parse(fs.readFileSync(benchLog, 'utf8'));
+      const latest  = fs.existsSync(latestLog) ? JSON.parse(fs.readFileSync(latestLog, 'utf8')) : (history[history.length - 1] || null);
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        available:    true,
+        runCount:     history.length,
+        latest:       latest,
+        trend:        history.slice(-10).map(r => ({ timestamp: r.timestamp, overall: r.overall, grade: r.grade })),
+        history,
+      }));
+    } catch (e) {
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: 'Failed to read benchmark log: ' + e.message }));
+    }
+    return;
+  }
+
   res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/', '/health', '/mcp', '/stream', '/events/recent'] }));
+  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/', '/health', '/mcp', '/stream', '/events/recent', '/api/test-results', '/api/ai-benchmarks'] }));
 });
 
 httpServer.listen(HTTP_PORT, '127.0.0.1', () => {
