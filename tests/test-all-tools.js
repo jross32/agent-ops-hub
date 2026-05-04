@@ -132,9 +132,14 @@ async function main() {
   // ── Runbook & Validation ──────────────────────────────────────────────────
   console.log('\n── Runbook & Validation ─────────────────────────────────────');
   await test('create execution runbook', 'create_execution_runbook', {
+    name: 'test-plan',
     objective: 'Implement adversarial review gate',
     steps: ['Implement handler', 'Write tests', 'Verify syntax']
-  }, r => r.created === true ? null : 'created not true');
+  }, r => {
+    if (!r.created) return 'created not true';
+    if (r.runbook && r.runbook.id && r.runbook.id.startsWith('undefined')) return 'runbook id starts with undefined';
+    return null;
+  });
   await test('run validation gate', 'run_validation_gate', {
     checkId: 'syntax_ok',
     command: 'node --check mcp-server.js',
@@ -232,6 +237,14 @@ async function main() {
     r => r.value === 42 ? null : `expected 42, got ${r.value}`);
   await test('get missing key', 'get_memory', { key: 'does.not.exist' },
     r => r.found === false ? null : 'expected found=false for missing key');
+  await test('list memory keys (top-level)', 'list_memory_keys', {},
+    r => Array.isArray(r.keys) ? null : `expected keys array, got: ${JSON.stringify(r).slice(0,80)}`);
+  await test('list memory keys (prefix)', 'list_memory_keys', { prefix: 'roadmap' },
+    r => Array.isArray(r.keys) && r.keys.length >= 1 ? null : `expected >=1 key under roadmap, got: ${JSON.stringify(r).slice(0,80)}`);
+  await test('clear memory (specific key)', 'clear_memory', { key: 'test.nested.deep' },
+    r => r.cleared === true ? null : `expected cleared=true, got: ${JSON.stringify(r).slice(0,80)}`);
+  await test('get memory (after clear)', 'get_memory', { key: 'test.nested.deep' },
+    r => r.found === false ? null : `expected found=false after clear, got found=${r.found}`);
 
   // ── ROADMAP #5: Adversarial Review ─────────────────────────────────────────
   console.log('\n── Adversarial Review ───────────────────────────────────────');
@@ -289,6 +302,11 @@ async function main() {
   const badFileRes = await callTool('auto_implement_plan', { targetFile: path.join(fixtureDir, 'not-a-real-file.js'), dryRun: true });
   if (!badFileRes.ok) { passCount++; console.log('✅ [    -] auto_implement_plan — nonexistent file correctly errors'); results.push({ name: 'nonexistent file errors', toolName: 'auto_implement_plan', status: 'PASS', durationMs: 0, error: null }); }
   else { failCount++; console.log('❌ [    -] auto_implement_plan — expected error for nonexistent file'); results.push({ name: 'nonexistent file errors', toolName: 'auto_implement_plan', status: 'FAIL', durationMs: 0, error: 'Should have thrown' }); }
+
+  // Path traversal — expect error
+  const traversalRes = await callTool('auto_implement_plan', { targetFile: '../../etc/passwd', dryRun: true });
+  if (!traversalRes.ok) { passCount++; console.log('✅ [    -] auto_implement_plan — path traversal correctly blocked'); results.push({ name: 'path traversal blocked', toolName: 'auto_implement_plan', status: 'PASS', durationMs: 0, error: null }); }
+  else { failCount++; console.log('❌ [    -] auto_implement_plan — path traversal should have been rejected'); results.push({ name: 'path traversal blocked', toolName: 'auto_implement_plan', status: 'FAIL', durationMs: 0, error: 'Path traversal not blocked' }); }
 
   // ── ROADMAP #4: Research Scraper ────────────────────────────────────────────
   console.log('\n── Scrape Research URL ──────────────────────────────────────');
@@ -496,15 +514,27 @@ async function main() {
   await test('evaluate sprint output', 'evaluate_sprint_output', {
     sprintId: 'eval-test-' + Date.now(),
     outputs: [
-      { specialistId: 'backend_architect', content: 'Use connection pooling to improve database throughput and reduce latency.' },
-      { specialistId: 'security_engineer', content: 'Validate all inputs at API boundaries to prevent injection attacks.' }
+      {
+        specialistId: 'backend_architect',
+        domain: 'backend',
+        output: `## Database Throughput Improvements\n\n### Actions\n- Implement connection pooling with a pool size of 20 to reduce latency by ~40ms\n- Add Redis cache layer for frequently accessed API endpoints\n- Replace N+1 queries with batch loading (implement DataLoader pattern)\n- Add database indexes on foreign keys: user_id, org_id, created_at\n- Configure query timeout to 5000ms to prevent runaway queries\n\n### Conflicts\n- Connection pool size increase requires infra change (max_connections=200)\n- Redis cache invalidation strategy needed before deploy\n\n### Score\nImpact: high | Complexity: medium | Risk: low`
+      },
+      {
+        specialistId: 'security_engineer',
+        domain: 'security',
+        output: `## API Security Hardening\n\n### Actions\n- Add input validation middleware at all API boundaries to prevent injection attacks\n- Implement rate limiting (100 req/min per IP) using sliding window algorithm\n- Replace Bearer token with short-lived JWTs (15min expiry + refresh token)\n- Add OWASP CSP headers to all responses\n- Enforce HTTPS redirect for all HTTP traffic\n\n### Conflicts\n- JWT rotation may break existing mobile clients — needs migration period\n\n### Score\nImpact: critical | Complexity: medium | Risk: low`
+      }
     ]
-  }, r => typeof r.overallScore === 'number' ? null : 'missing overallScore');
+  }, r => {
+    if (typeof r.overallScore !== 'number') return 'missing overallScore';
+    if (r.overallScore < 50) return `score too low: ${r.overallScore}/100 (expected >=50)`;
+    return null;
+  });
   await test('synthesize sprint outputs', 'synthesize_sprint_outputs', {
     sprintId: 'synth-test-' + Date.now(),
     outputs: [
-      { specialistId: 'backend_architect', content: 'Implement caching layer using Redis for frequently accessed data.' },
-      { specialistId: 'systems_architect', content: 'Add circuit breaker pattern for external service calls.' }
+      { specialistId: 'backend_architect', output: 'Implement caching layer using Redis for frequently accessed data. Add connection pooling with size 20.' },
+      { specialistId: 'systems_architect', output: 'Add circuit breaker pattern for external service calls. Use exponential backoff with jitter.' }
     ]
   }, r => r.synthesizedAt ? null : 'missing synthesizedAt field');
 

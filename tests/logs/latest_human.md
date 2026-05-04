@@ -1,11 +1,11 @@
 # agent-ops-hub v1.0.0 Full Tool Test Report
-**Date:** 2026-05-04T11:12:19.417Z
+**Date:** 2026-05-04T11:23:46.307Z
 
 ## Summary
 | Metric | Value |
 |--------|-------|
-| Total Tests | 69 |
-| ✅ Passed | 69 |
+| Total Tests | 74 |
+| ✅ Passed | 74 |
 | ❌ Failed | 0 |
 | ⏭️ Skipped | 0 |
 | Pass Rate | 100% |
@@ -40,6 +40,10 @@
 ✅ `set_memory` — set nested memory
 ✅ `get_memory` — get nested memory
 ✅ `get_memory` — get missing key
+✅ `list_memory_keys` — list memory keys (top-level)
+✅ `list_memory_keys` — list memory keys (prefix)
+✅ `clear_memory` — clear memory (specific key)
+✅ `get_memory` — get memory (after clear)
 ✅ `adversarial_review` — basic adversarial review
 ✅ `adversarial_review` — adversarial review — plan text
 ✅ `adversarial_review` — adversarial review — diff text
@@ -48,6 +52,7 @@
 ✅ `auto_implement_plan` — file actually changed
 ✅ `auto_implement_plan` — auto-implement with bad find (no match)
 ✅ `auto_implement_plan` — nonexistent file errors
+✅ `auto_implement_plan` — path traversal blocked
 ✅ `scrape_research_url` — scrape research url (example.com)
 ✅ `scrape_research_url` — scrape with save=true
 ✅ `scrape_research_url` — scrape bad url (should error)

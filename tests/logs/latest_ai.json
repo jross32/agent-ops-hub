@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-04T11:12:19.404Z",
+  "timestamp": "2026-05-04T11:23:46.302Z",
   "suite": "full-tool-test-v1.0.0",
   "version": "1.0.0",
   "tests": [
@@ -8,7 +8,7 @@
       "name": "health check",
       "toolName": "check_server_health",
       "status": "PASS",
-      "durationMs": 417,
+      "durationMs": 497,
       "error": null
     },
     {
@@ -16,7 +16,7 @@
       "name": "list local servers",
       "toolName": "list_local_mcp_servers",
       "status": "PASS",
-      "durationMs": 190,
+      "durationMs": 179,
       "error": null
     },
     {
@@ -24,7 +24,7 @@
       "name": "agent mode preflight",
       "toolName": "agent_mode_preflight",
       "status": "PASS",
-      "durationMs": 1164,
+      "durationMs": 1033,
       "error": null
     },
     {
@@ -48,7 +48,7 @@
       "name": "code complexity scan",
       "toolName": "code_complexity_scan",
       "status": "PASS",
-      "durationMs": 72,
+      "durationMs": 70,
       "error": null
     },
     {
@@ -56,7 +56,7 @@
       "name": "estimate refactor risk",
       "toolName": "estimate_refactor_risk",
       "status": "PASS",
-      "durationMs": 340,
+      "durationMs": 297,
       "error": null
     },
     {
@@ -64,7 +64,7 @@
       "name": "compare server capabilities",
       "toolName": "compare_server_capabilities",
       "status": "PASS",
-      "durationMs": 21,
+      "durationMs": 15,
       "error": null
     },
     {
@@ -72,7 +72,7 @@
       "name": "research agent patterns",
       "toolName": "research_agent_patterns",
       "status": "PASS",
-      "durationMs": 7,
+      "durationMs": 6,
       "error": null
     },
     {
@@ -80,7 +80,7 @@
       "name": "research improvement ideas",
       "toolName": "research_improvement_ideas",
       "status": "PASS",
-      "durationMs": 1296,
+      "durationMs": 2176,
       "error": null
     },
     {
@@ -96,7 +96,7 @@
       "name": "run validation gate",
       "toolName": "run_validation_gate",
       "status": "PASS",
-      "durationMs": 4,
+      "durationMs": 5,
       "error": null
     },
     {
@@ -104,7 +104,7 @@
       "name": "benchmark validation gate",
       "toolName": "benchmark_validation_gate",
       "status": "PASS",
-      "durationMs": 485,
+      "durationMs": 516,
       "error": null
     },
     {
@@ -112,7 +112,7 @@
       "name": "summarize test artifacts",
       "toolName": "summarize_test_artifacts",
       "status": "PASS",
-      "durationMs": 12,
+      "durationMs": 8,
       "error": null
     },
     {
@@ -120,7 +120,7 @@
       "name": "diff execution plans",
       "toolName": "diff_execution_plans",
       "status": "PASS",
-      "durationMs": 7,
+      "durationMs": 6,
       "error": null
     },
     {
@@ -128,7 +128,7 @@
       "name": "generate test scaffold",
       "toolName": "generate_test_scaffold",
       "status": "PASS",
-      "durationMs": 4,
+      "durationMs": 3,
       "error": null
     },
     {
@@ -136,7 +136,7 @@
       "name": "dispatch specialist task",
       "toolName": "dispatch_specialist_task",
       "status": "PASS",
-      "durationMs": 5,
+      "durationMs": 4,
       "error": null
     },
     {
@@ -144,7 +144,7 @@
       "name": "dispatch — security_engineer",
       "toolName": "dispatch_specialist_task",
       "status": "PASS",
-      "durationMs": 5,
+      "durationMs": 4,
       "error": null
     },
     {
@@ -152,7 +152,7 @@
       "name": "run parallel sprint (design adversarial_review)",
       "toolName": "run_parallel_specialist_sprint",
       "status": "PASS",
-      "durationMs": 8,
+      "durationMs": 5,
       "error": null
     },
     {
@@ -168,7 +168,7 @@
       "name": "get sprint quality trend",
       "toolName": "get_sprint_quality_trend",
       "status": "PASS",
-      "durationMs": 12,
+      "durationMs": 11,
       "error": null
     },
     {
@@ -176,7 +176,7 @@
       "name": "set memory (roadmap.version)",
       "toolName": "set_memory",
       "status": "PASS",
-      "durationMs": 9,
+      "durationMs": 7,
       "error": null
     },
     {
@@ -184,7 +184,7 @@
       "name": "get memory (roadmap.version)",
       "toolName": "get_memory",
       "status": "PASS",
-      "durationMs": 6,
+      "durationMs": 4,
       "error": null
     },
     {
@@ -192,7 +192,7 @@
       "name": "append memory (roadmap.completedItems)",
       "toolName": "append_memory",
       "status": "PASS",
-      "durationMs": 7,
+      "durationMs": 6,
       "error": null
     },
     {
@@ -200,7 +200,7 @@
       "name": "append memory (2nd item)",
       "toolName": "append_memory",
       "status": "PASS",
-      "durationMs": 12,
+      "durationMs": 5,
       "error": null
     },
     {
@@ -216,7 +216,7 @@
       "name": "set nested memory",
       "toolName": "set_memory",
       "status": "PASS",
-      "durationMs": 6,
+      "durationMs": 5,
       "error": null
     },
     {
@@ -232,19 +232,51 @@
       "name": "get missing key",
       "toolName": "get_memory",
       "status": "PASS",
-      "durationMs": 5,
+      "durationMs": 4,
       "error": null
     },
     {
       "id": 30,
-      "name": "basic adversarial review",
-      "toolName": "adversarial_review",
+      "name": "list memory keys (top-level)",
+      "toolName": "list_memory_keys",
       "status": "PASS",
-      "durationMs": 5,
+      "durationMs": 4,
       "error": null
     },
     {
       "id": 31,
+      "name": "list memory keys (prefix)",
+      "toolName": "list_memory_keys",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 32,
+      "name": "clear memory (specific key)",
+      "toolName": "clear_memory",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
+    },
+    {
+      "id": 33,
+      "name": "get memory (after clear)",
+      "toolName": "get_memory",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 34,
+      "name": "basic adversarial review",
+      "toolName": "adversarial_review",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 35,
       "name": "adversarial review — plan text",
       "toolName": "adversarial_review",
       "status": "PASS",
@@ -252,7 +284,7 @@
       "error": null
     },
     {
-      "id": 32,
+      "id": 36,
       "name": "adversarial review — diff text",
       "toolName": "adversarial_review",
       "status": "PASS",
@@ -260,7 +292,7 @@
       "error": null
     },
     {
-      "id": 33,
+      "id": 37,
       "name": "auto-implement dry run",
       "toolName": "auto_implement_plan",
       "status": "PASS",
@@ -268,15 +300,15 @@
       "error": null
     },
     {
-      "id": 34,
+      "id": 38,
       "name": "auto-implement apply",
       "toolName": "auto_implement_plan",
       "status": "PASS",
-      "durationMs": 303,
+      "durationMs": 334,
       "error": null
     },
     {
-      "id": 35,
+      "id": 39,
       "name": "file actually changed",
       "toolName": "auto_implement_plan",
       "status": "PASS",
@@ -284,7 +316,7 @@
       "error": null
     },
     {
-      "id": 36,
+      "id": 40,
       "name": "auto-implement with bad find (no match)",
       "toolName": "auto_implement_plan",
       "status": "PASS",
@@ -292,7 +324,7 @@
       "error": null
     },
     {
-      "id": 37,
+      "id": 41,
       "name": "nonexistent file errors",
       "toolName": "auto_implement_plan",
       "status": "PASS",
@@ -300,23 +332,31 @@
       "error": null
     },
     {
-      "id": 38,
+      "id": 42,
+      "name": "path traversal blocked",
+      "toolName": "auto_implement_plan",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 43,
       "name": "scrape research url (example.com)",
       "toolName": "scrape_research_url",
       "status": "PASS",
-      "durationMs": 119,
+      "durationMs": 88,
       "error": null
     },
     {
-      "id": 39,
+      "id": 44,
       "name": "scrape with save=true",
       "toolName": "scrape_research_url",
       "status": "PASS",
-      "durationMs": 38,
+      "durationMs": 43,
       "error": null
     },
     {
-      "id": 40,
+      "id": 45,
       "name": "scrape bad url (should error)",
       "toolName": "scrape_research_url",
       "status": "PASS",
@@ -324,23 +364,23 @@
       "error": null
     },
     {
-      "id": 41,
+      "id": 46,
       "name": "register a dynamic tool",
       "toolName": "register_tool",
       "status": "PASS",
-      "durationMs": 10,
+      "durationMs": 7,
       "error": null
     },
     {
-      "id": 42,
+      "id": 47,
       "name": "call registered dynamic tool",
       "toolName": "test_dynamic_tool",
       "status": "PASS",
-      "durationMs": 5,
+      "durationMs": 3,
       "error": null
     },
     {
-      "id": 43,
+      "id": 48,
       "name": "duplicate rejected",
       "toolName": "register_tool",
       "status": "PASS",
@@ -348,7 +388,7 @@
       "error": null
     },
     {
-      "id": 44,
+      "id": 49,
       "name": "bad syntax rejected",
       "toolName": "register_tool",
       "status": "PASS",
@@ -356,15 +396,15 @@
       "error": null
     },
     {
-      "id": 45,
+      "id": 50,
       "name": "unregister dynamic tool",
       "toolName": "unregister_tool",
       "status": "PASS",
-      "durationMs": 8,
+      "durationMs": 7,
       "error": null
     },
     {
-      "id": 46,
+      "id": 51,
       "name": "unregistered tool fails",
       "toolName": "unregister_tool",
       "status": "PASS",
@@ -372,7 +412,7 @@
       "error": null
     },
     {
-      "id": 47,
+      "id": 52,
       "name": "core tool protected",
       "toolName": "unregister_tool",
       "status": "PASS",
@@ -380,15 +420,15 @@
       "error": null
     },
     {
-      "id": 48,
+      "id": 53,
       "name": "linear 2-node graph",
       "toolName": "execute_dependency_graph",
       "status": "PASS",
-      "durationMs": 7,
+      "durationMs": 8,
       "error": null
     },
     {
-      "id": 49,
+      "id": 54,
       "name": "parallel 2-node graph (no edges)",
       "toolName": "execute_dependency_graph",
       "status": "PASS",
@@ -396,7 +436,7 @@
       "error": null
     },
     {
-      "id": 50,
+      "id": 55,
       "name": "diamond graph (a→b, a→c, b→d, c→d)",
       "toolName": "execute_dependency_graph",
       "status": "PASS",
@@ -404,7 +444,7 @@
       "error": null
     },
     {
-      "id": 51,
+      "id": 56,
       "name": "cycle detection (a→b, b→a)",
       "toolName": "execute_dependency_graph",
       "status": "PASS",
@@ -412,23 +452,23 @@
       "error": null
     },
     {
-      "id": 52,
+      "id": 57,
       "name": "stopOnError=true halts on fail",
       "toolName": "execute_dependency_graph",
       "status": "PASS",
-      "durationMs": 6,
+      "durationMs": 5,
       "error": null
     },
     {
-      "id": 53,
+      "id": 58,
       "name": "load skill pack",
       "toolName": "load_skill_pack",
       "status": "PASS",
-      "durationMs": 12,
+      "durationMs": 11,
       "error": null
     },
     {
-      "id": 54,
+      "id": 59,
       "name": "call sp_greet from skill pack",
       "toolName": "sp_greet",
       "status": "PASS",
@@ -436,23 +476,23 @@
       "error": null
     },
     {
-      "id": 55,
+      "id": 60,
       "name": "call sp_add from skill pack",
       "toolName": "sp_add",
-      "status": "PASS",
-      "durationMs": 3,
-      "error": null
-    },
-    {
-      "id": 56,
-      "name": "list loaded skill packs",
-      "toolName": "list_loaded_skill_packs",
       "status": "PASS",
       "durationMs": 4,
       "error": null
     },
     {
-      "id": 57,
+      "id": 61,
+      "name": "list loaded skill packs",
+      "toolName": "list_loaded_skill_packs",
+      "status": "PASS",
+      "durationMs": 3,
+      "error": null
+    },
+    {
+      "id": 62,
       "name": "duplicate pack rejected",
       "toolName": "load_skill_pack",
       "status": "PASS",
@@ -460,7 +500,7 @@
       "error": null
     },
     {
-      "id": 58,
+      "id": 63,
       "name": "unload skill pack",
       "toolName": "unload_skill_pack",
       "status": "PASS",
@@ -468,7 +508,7 @@
       "error": null
     },
     {
-      "id": 59,
+      "id": 64,
       "name": "nonexistent pack errors",
       "toolName": "unload_skill_pack",
       "status": "PASS",
@@ -476,31 +516,31 @@
       "error": null
     },
     {
-      "id": 60,
+      "id": 65,
       "name": "list available servers",
       "toolName": "list_available_servers",
       "status": "PASS",
-      "durationMs": 178,
+      "durationMs": 133,
       "error": null
     },
     {
-      "id": 61,
+      "id": 66,
       "name": "list available servers (with health check)",
       "toolName": "list_available_servers",
       "status": "PASS",
-      "durationMs": 169,
+      "durationMs": 127,
       "error": null
     },
     {
-      "id": 62,
+      "id": 67,
       "name": "delegate to self (get_memory)",
       "toolName": "delegate_to_server",
       "status": "PASS",
-      "durationMs": 11,
+      "durationMs": 10,
       "error": null
     },
     {
-      "id": 63,
+      "id": 68,
       "name": "bad server errors",
       "toolName": "delegate_to_server",
       "status": "PASS",
@@ -508,7 +548,7 @@
       "error": null
     },
     {
-      "id": 64,
+      "id": 69,
       "name": "spawn child server",
       "toolName": "spawn_child_server",
       "status": "PASS",
@@ -516,15 +556,15 @@
       "error": null
     },
     {
-      "id": 65,
+      "id": 70,
       "name": "list available servers (child running)",
       "toolName": "list_available_servers",
       "status": "PASS",
-      "durationMs": 181,
+      "durationMs": 104,
       "error": null
     },
     {
-      "id": 66,
+      "id": 71,
       "name": "stop child server",
       "toolName": "stop_child_server",
       "status": "PASS",
@@ -532,7 +572,7 @@
       "error": null
     },
     {
-      "id": 67,
+      "id": 72,
       "name": "bad server stop errors",
       "toolName": "stop_child_server",
       "status": "PASS",
@@ -540,25 +580,25 @@
       "error": null
     },
     {
-      "id": 68,
+      "id": 73,
       "name": "evaluate sprint output",
       "toolName": "evaluate_sprint_output",
       "status": "PASS",
-      "durationMs": 9,
+      "durationMs": 6,
       "error": null
     },
     {
-      "id": 69,
+      "id": 74,
       "name": "synthesize sprint outputs",
       "toolName": "synthesize_sprint_outputs",
       "status": "PASS",
-      "durationMs": 8,
+      "durationMs": 6,
       "error": null
     }
   ],
   "summary": {
-    "total": 69,
-    "passed": 69,
+    "total": 74,
+    "passed": 74,
     "failed": 0,
     "skipped": 0,
     "passRate": 100

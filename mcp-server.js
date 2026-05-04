@@ -998,8 +998,29 @@ const TOOLS = [
       additionalProperties: false
     }
   },
-
-  // ── ROADMAP #5: Adversarial Review Gate ───────────────────────────────────
+  {
+    name: 'list_memory_keys',
+    description: 'List all top-level keys (or all keys under a dot-notation prefix) in the persistent session memory store. Use to discover what is stored without needing to know key names upfront.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prefix: { type: 'string', description: 'Optional dot-notation prefix to scope the listing (e.g. "roadmap" returns keys under roadmap)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'clear_memory',
+    description: 'Delete a key (or all keys under a dot-notation prefix) from the persistent session memory store. Use to remove stale context or reset a namespace.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'The key to delete. Use dot-notation for nested keys (e.g. "roadmap.currentItem"). To delete all keys pass "__all__".' }
+      },
+      required: ['key'],
+      additionalProperties: false
+    }
+  },
   {
     name: 'adversarial_review',
     description: 'Adversarial review gate — given any plan, code snippet, or diff, builds a structured prompt bundle that forces an AI to act as a hostile critic. Returns ≥3 specific objections covering security holes, logic errors, edge cases, and breaking changes. Use before auto-implementing any plan.',
@@ -1588,6 +1609,10 @@ async function runTool(name, args) {
       return setMemory(args);
     case 'append_memory':
       return appendMemory(args);
+    case 'list_memory_keys':
+      return listMemoryKeys(args);
+    case 'clear_memory':
+      return clearMemory(args);
     case 'adversarial_review':
       return adversarialReview(args);
     case 'auto_implement_plan':
@@ -1769,11 +1794,12 @@ async function researchAgentPatterns(args) {
 }
 
 function createExecutionRunbook(args) {
+  const name = args.name || 'runbook';
   const now = new Date();
   const stamp = toStamp(now);
   const runbook = {
-    id: `${slugify(args.name)}-${stamp}`,
-    name: args.name,
+    id: `${slugify(name)}-${stamp}`,
+    name: name,
     objective: args.objective,
     createdAt: now.toISOString(),
     steps: args.steps.map((step, index) => ({
@@ -4418,7 +4444,7 @@ function evaluateSprintOutput(args) {
   };
 
   const perTaskScores = outputs.map((item) => {
-    const text    = item.output || '';
+    const text    = item.output || item.content || '';
     const words   = text.split(/\s+/).filter(Boolean);
     const wordCount = words.length;
 
@@ -4526,7 +4552,7 @@ function synthesizeSprintOutputs(args) {
   const ACTION_PATTERNS = [/^[-*•]\s+(.+)/, /^\d+[.)]\s+(.+)/, /^(implement|add|fix|update|remove|refactor|ensure|create|replace|migrate|deploy|validate|test)\s+/i];
   const allActions = [];
   for (const item of outputs) {
-    const lines = (item.output || '').split('\n');
+    const lines = (item.output || item.content || '').split('\n');
     for (const line of lines) {
       const trimmed = line.trim();
       for (const pat of ACTION_PATTERNS) {
@@ -4835,6 +4861,50 @@ function appendMemory(args) {
   _setNestedKey(store, key, arr);
   _writeMemoryStore(store);
   return { key, appended: args.item, newLength: arr.length, ok: true };
+}
+
+function listMemoryKeys(args) {
+  const store = _readMemoryStore();
+  const prefix = args && args.prefix;
+  if (prefix) {
+    const sub = _getNestedKey(store, prefix);
+    if (sub === undefined || sub === null) return { prefix, keys: [], count: 0 };
+    if (typeof sub !== 'object' || Array.isArray(sub)) return { prefix, keys: [prefix], count: 1, value: sub };
+    const keys = Object.keys(sub).map(k => `${prefix}.${k}`);
+    return { prefix, keys, count: keys.length };
+  }
+  const keys = Object.keys(store);
+  return { keys, count: keys.length };
+}
+
+function clearMemory(args) {
+  const key = args.key;
+  if (key === '__all__') {
+    _writeMemoryStore({});
+    return { key, cleared: true, deletedAll: true };
+  }
+  const store = _readMemoryStore();
+  const parts = key.split('.');
+  if (parts.length === 1) {
+    const existed = key in store;
+    delete store[key];
+    _writeMemoryStore(store);
+    return { key, cleared: true, existed };
+  }
+  // nested delete
+  let cur = store;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (cur[p] == null || typeof cur[p] !== 'object') {
+      return { key, cleared: false, existed: false };
+    }
+    cur = cur[p];
+  }
+  const leaf = parts[parts.length - 1];
+  const existed = leaf in cur;
+  delete cur[leaf];
+  _writeMemoryStore(store);
+  return { key, cleared: true, existed };
 }
 
 async function autoRemediateDrift(args) {
@@ -5422,6 +5492,18 @@ async function autoImplementPlan(args) {
   const commitMsg    = args.commitMessage || null;
   const plan         = args.plan || '';
   const explicitEdits = Array.isArray(args.edits) ? args.edits : [];
+
+  // Security: reject path traversal — file must stay within server root or a known safe dir
+  const serverRoot = path.resolve(__dirname);
+  const resolvedTarget = path.resolve(targetFile);
+  const ALLOWED_ROOTS = [
+    serverRoot,
+    path.resolve(process.cwd()),
+  ];
+  const isAllowed = ALLOWED_ROOTS.some(root => resolvedTarget.startsWith(root + path.sep) || resolvedTarget === root);
+  if (!isAllowed) {
+    throw new Error(`Path outside allowed root: ${resolvedTarget}`);
+  }
 
   if (!fs.existsSync(targetFile)) {
     throw new Error(`targetFile not found: ${targetFile}`);
