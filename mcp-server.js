@@ -9,6 +9,52 @@ const { spawn } = require('child_process');
 const DEFAULT_MCP_ROOT = 'C:/Users/justi/mcp-servers';
 const DEFAULT_RUNBOOK_DIR = path.resolve(__dirname, 'artifacts', 'runbooks');
 
+const SPECIALIST_AGENT_CATALOG = [
+  { id: 'ux_ui_architect', domain: 'ux', title: 'UX/UI Architect', strengths: ['ux', 'ui', 'interaction', 'layout'] },
+  { id: 'product_designer', domain: 'ux', title: 'Product Designer', strengths: ['flows', 'wireframes', 'feature-design'] },
+  { id: 'design_system_engineer', domain: 'ux', title: 'Design System Engineer', strengths: ['tokens', 'components', 'consistency'] },
+  { id: 'accessibility_specialist', domain: 'ux', title: 'Accessibility Specialist', strengths: ['a11y', 'wcag', 'screen-reader'] },
+  { id: 'frontend_performance_engineer', domain: 'frontend', title: 'Frontend Performance Engineer', strengths: ['rendering', 'bundle-size', 'web-vitals'] },
+  { id: 'visual_regression_tester', domain: 'quality', title: 'Visual Regression Tester', strengths: ['snapshots', 'pixel-diff', 'ui-regression'] },
+  { id: 'usability_researcher', domain: 'ux', title: 'Usability Researcher', strengths: ['testing', 'interviews', 'journeys'] },
+  { id: 'interaction_designer', domain: 'ux', title: 'Interaction Designer', strengths: ['micro-interactions', 'motion', 'state'] },
+  { id: 'brand_experience_designer', domain: 'ux', title: 'Brand Experience Designer', strengths: ['visual-language', 'voice', 'identity'] },
+  { id: 'mobile_responsive_specialist', domain: 'frontend', title: 'Mobile Responsive Specialist', strengths: ['breakpoints', 'touch', 'layout-adaptation'] },
+
+  { id: 'backend_architect', domain: 'backend', title: 'Backend Architect', strengths: ['services', 'boundaries', 'scalability'] },
+  { id: 'api_designer', domain: 'backend', title: 'API Designer', strengths: ['contracts', 'rest', 'graphql'] },
+  { id: 'database_engineer', domain: 'data', title: 'Database Engineer', strengths: ['schema', 'queries', 'migrations'] },
+  { id: 'distributed_systems_engineer', domain: 'backend', title: 'Distributed Systems Engineer', strengths: ['queues', 'consistency', 'fault-tolerance'] },
+  { id: 'reliability_engineer', domain: 'platform', title: 'Reliability Engineer', strengths: ['slo', 'resilience', 'stability'] },
+  { id: 'security_engineer', domain: 'security', title: 'Security Engineer', strengths: ['threat-modeling', 'hardening', 'vuln-fixes'] },
+  { id: 'auth_identity_engineer', domain: 'security', title: 'Auth & Identity Engineer', strengths: ['oauth', 'oidc', 'session-security'] },
+  { id: 'devops_release_engineer', domain: 'platform', title: 'DevOps Release Engineer', strengths: ['deployments', 'rollbacks', 'release-gates'] },
+  { id: 'qa_automation_engineer', domain: 'quality', title: 'QA Automation Engineer', strengths: ['e2e', 'api-tests', 'automation'] },
+  { id: 'test_strategy_lead', domain: 'quality', title: 'Test Strategy Lead', strengths: ['coverage', 'risk-based-testing', 'test-design'] },
+
+  { id: 'bug_hunter', domain: 'quality', title: 'Bug Hunter', strengths: ['repro', 'edge-cases', 'root-cause'] },
+  { id: 'static_analysis_specialist', domain: 'quality', title: 'Static Analysis Specialist', strengths: ['linters', 'code-smells', 'type-safety'] },
+  { id: 'performance_profiler', domain: 'performance', title: 'Performance Profiler', strengths: ['cpu', 'memory', 'latency'] },
+  { id: 'observability_engineer', domain: 'platform', title: 'Observability Engineer', strengths: ['logs', 'metrics', 'tracing'] },
+  { id: 'data_engineer', domain: 'data', title: 'Data Engineer', strengths: ['etl', 'pipelines', 'integrity'] },
+  { id: 'ml_engineer', domain: 'ai', title: 'ML Engineer', strengths: ['modeling', 'evaluation', 'serving'] },
+  { id: 'prompt_engineer', domain: 'ai', title: 'Prompt Engineer', strengths: ['prompt-design', 'evals', 'agent-behavior'] },
+  { id: 'mcp_protocol_engineer', domain: 'ai', title: 'MCP Protocol Engineer', strengths: ['tool-schema', 'json-rpc', 'capabilities'] },
+  { id: 'tooling_integration_engineer', domain: 'platform', title: 'Tooling Integration Engineer', strengths: ['pipelines', 'integrations', 'automation'] },
+  { id: 'docs_information_architect', domain: 'docs', title: 'Docs Information Architect', strengths: ['structure', 'discoverability', 'navigation'] },
+
+  { id: 'technical_writer', domain: 'docs', title: 'Technical Writer', strengths: ['guides', 'references', 'examples'] },
+  { id: 'developer_experience_engineer', domain: 'platform', title: 'Developer Experience Engineer', strengths: ['onboarding', 'scripts', 'dev-flow'] },
+  { id: 'build_system_engineer', domain: 'platform', title: 'Build System Engineer', strengths: ['build-graph', 'caching', 'toolchains'] },
+  { id: 'ci_cd_engineer', domain: 'platform', title: 'CI/CD Engineer', strengths: ['workflows', 'gates', 'release-automation'] },
+  { id: 'incident_commander', domain: 'operations', title: 'Incident Commander', strengths: ['triage', 'coordination', 'mitigation'] },
+  { id: 'project_manager', domain: 'product', title: 'Project Manager', strengths: ['roadmaps', 'milestones', 'dependencies'] },
+  { id: 'scrum_facilitator', domain: 'product', title: 'Scrum Facilitator', strengths: ['cadence', 'retros', 'delivery-rhythm'] },
+  { id: 'business_analyst', domain: 'product', title: 'Business Analyst', strengths: ['requirements', 'prioritization', 'value'] },
+  { id: 'growth_experimentation_lead', domain: 'product', title: 'Growth Experimentation Lead', strengths: ['experiments', 'funnel', 'adoption'] },
+  { id: 'customer_support_analyst', domain: 'operations', title: 'Customer Support Analyst', strengths: ['feedback', 'issue-patterns', 'triage-data'] }
+];
+
 const TOOLS = [
   {
     name: 'agent_mode_preflight',
@@ -376,6 +422,60 @@ const TOOLS = [
     }
   },
   {
+    name: 'generate_specialist_agent_roster',
+    description: 'Generate a roster of specialist agents (40-role catalog) filtered by domain and priorities',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domains: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: 20,
+          description: 'Optional domain filters (ux, frontend, backend, quality, security, data, ai, docs, platform, operations, product)'
+        },
+        includeStrengths: { type: 'boolean', description: 'Include each role strengths list (default true)' },
+        maxRoles: { type: 'number', minimum: 1, maximum: 200, description: 'Maximum number of roles to return (default all)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'plan_specialist_assignments',
+    description: 'Plan specialist pod assignments for a project goal using the role catalog and workstream mapping',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', description: 'Project goal to staff with specialist agents' },
+        workstreams: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: 30,
+          description: 'Optional explicit workstreams (if omitted, inferred from goal)'
+        },
+        maxAgentsPerWorkstream: { type: 'number', minimum: 1, maximum: 10, description: 'Max specialists assigned to each workstream (default 4)' },
+        includeCrossReview: { type: 'boolean', description: 'Assign a cross-reviewer from quality/security (default true)' }
+      },
+      required: ['goal'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'build_collaboration_schedule',
+    description: 'Build a concurrent collaboration schedule from specialist assignments with waves, dependencies, and handoffs',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan: { type: 'object', description: 'Output object from plan_specialist_assignments' },
+        sprintDays: { type: 'number', minimum: 3, maximum: 60, description: 'Total sprint length in days (default 14)' },
+        maxParallelPods: { type: 'number', minimum: 1, maximum: 10, description: 'Maximum pods running in parallel per wave (default 3)' }
+      },
+      required: ['plan'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'validate_json_schema',
     description: 'Validate a JSON object against a JSON Schema definition and return a structured pass/fail report with detailed errors',
     inputSchema: {
@@ -403,6 +503,14 @@ const PROMPTS = [
     description: 'Recommended validation gate strategy for MCP server development — test setup, gate ordering, and severity levels',
     arguments: [
       { name: 'serverName', description: 'Name of the MCP server being validated', required: false }
+    ]
+  },
+  {
+    name: 'specialist_team_blueprint',
+    description: 'Blueprint for running a 40-role specialist agent team with pod collaboration and continuous improvement loops',
+    arguments: [
+      { name: 'goal', description: 'Project goal for the specialist team', required: false },
+      { name: 'teamSize', description: 'Desired active specialists to start with', required: false }
     ]
   },
   {
@@ -459,7 +567,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.1.0'
+        version: '0.2.0'
       },
       capabilities: {
         tools: {},
@@ -554,6 +662,12 @@ async function runTool(name, args) {
       return findMissingTests(args);
     case 'tag_test_results':
       return tagTestResults(args);
+    case 'generate_specialist_agent_roster':
+      return generateSpecialistAgentRoster(args);
+    case 'plan_specialist_assignments':
+      return planSpecialistAssignments(args);
+    case 'build_collaboration_schedule':
+      return buildCollaborationSchedule(args);
     case 'validate_json_schema':
       return validateJsonSchema(args);
     default:
@@ -1258,7 +1372,7 @@ function sendResult(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
 
-// ── New tool implementations (v0.1.0) ────────────────────────────────────
+// ── New tool implementations (v0.2.0) ────────────────────────────────────
 
 function scanToolCoverage(args) {
   const serverDir = normalizeFsPath(args.serverDir);
@@ -1728,6 +1842,202 @@ function tagTestResults(args) {
   };
 }
 
+function generateSpecialistAgentRoster(args) {
+  const domains = Array.isArray(args.domains)
+    ? args.domains.map((d) => String(d || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  const includeStrengths = args.includeStrengths !== false;
+  const maxRoles = Number.isFinite(args.maxRoles) ? Math.floor(args.maxRoles) : SPECIALIST_AGENT_CATALOG.length;
+
+  let roles = SPECIALIST_AGENT_CATALOG.slice();
+  if (domains.length) {
+    const domainSet = new Set(domains);
+    roles = roles.filter((r) => domainSet.has(r.domain));
+  }
+
+  roles = roles.slice(0, maxRoles).map((r) => {
+    if (includeStrengths) return { ...r };
+    return { id: r.id, domain: r.domain, title: r.title };
+  });
+
+  const byDomain = {};
+  for (const role of roles) {
+    byDomain[role.domain] = (byDomain[role.domain] || 0) + 1;
+  }
+
+  return {
+    totalCatalogRoles: SPECIALIST_AGENT_CATALOG.length,
+    selectedCount: roles.length,
+    filters: { domains: domains.length ? domains : null, includeStrengths, maxRoles },
+    byDomain,
+    roles
+  };
+}
+
+function planSpecialistAssignments(args) {
+  const goal = String(args.goal || '').trim();
+  if (!goal) throw new Error('goal is required');
+
+  const maxAgentsPerWorkstream = Number.isFinite(args.maxAgentsPerWorkstream)
+    ? Math.max(1, Math.floor(args.maxAgentsPerWorkstream))
+    : 4;
+  const includeCrossReview = args.includeCrossReview !== false;
+
+  const workstreams = Array.isArray(args.workstreams) && args.workstreams.length
+    ? args.workstreams.map((w) => String(w || '').trim()).filter(Boolean)
+    : inferWorkstreamsFromGoal(goal);
+
+  const pods = workstreams.map((workstream, index) => {
+    const domain = classifyWorkstreamDomain(workstream);
+    const rolePool = SPECIALIST_AGENT_CATALOG.filter((r) => r.domain === domain);
+    const fallbackPool = SPECIALIST_AGENT_CATALOG.filter((r) => ['platform', 'quality', 'product'].includes(r.domain));
+    const selected = (rolePool.length ? rolePool : fallbackPool).slice(0, maxAgentsPerWorkstream);
+
+    const lead = selected[0] || SPECIALIST_AGENT_CATALOG[0];
+    const support = selected.slice(1);
+    let reviewer = null;
+    if (includeCrossReview) {
+      reviewer = SPECIALIST_AGENT_CATALOG.find((r) => r.domain === 'quality') || null;
+      if (domain !== 'security' && !reviewer) reviewer = SPECIALIST_AGENT_CATALOG.find((r) => r.domain === 'security') || null;
+    }
+
+    return {
+      podId: `pod-${index + 1}`,
+      workstream,
+      domain,
+      lead: { id: lead.id, title: lead.title },
+      support: support.map((r) => ({ id: r.id, title: r.title })),
+      reviewer: reviewer ? { id: reviewer.id, title: reviewer.title } : null,
+      parallelizable: domain !== 'release',
+      successCriteria: suggestSuccessCriteria(domain)
+    };
+  });
+
+  const utilization = {};
+  for (const pod of pods) {
+    const roleIds = [pod.lead.id, ...pod.support.map((s) => s.id), ...(pod.reviewer ? [pod.reviewer.id] : [])];
+    for (const id of roleIds) utilization[id] = (utilization[id] || 0) + 1;
+  }
+
+  return {
+    goal,
+    generatedAt: new Date().toISOString(),
+    podCount: pods.length,
+    maxAgentsPerWorkstream,
+    includeCrossReview,
+    pods,
+    utilization
+  };
+}
+
+function buildCollaborationSchedule(args) {
+  const plan = args.plan;
+  if (!plan || typeof plan !== 'object') throw new Error('plan must be an object');
+  const pods = Array.isArray(plan.pods) ? plan.pods : [];
+  if (!pods.length) throw new Error('plan.pods must contain at least one pod');
+
+  const sprintDays = Number.isFinite(args.sprintDays) ? Math.floor(args.sprintDays) : 14;
+  const maxParallelPods = Number.isFinite(args.maxParallelPods) ? Math.floor(args.maxParallelPods) : 3;
+
+  const waves = [];
+  for (let i = 0; i < pods.length; i += maxParallelPods) {
+    const slice = pods.slice(i, i + maxParallelPods);
+    waves.push(slice);
+  }
+
+  const timeline = [];
+  let dayCursor = 1;
+  const waveSpan = Math.max(2, Math.floor(sprintDays / waves.length));
+
+  waves.forEach((podsInWave, idx) => {
+    const waveStart = dayCursor;
+    const waveEnd = Math.min(sprintDays, dayCursor + waveSpan - 1);
+    timeline.push({
+      wave: idx + 1,
+      dayStart: waveStart,
+      dayEnd: waveEnd,
+      pods: podsInWave.map((p) => ({
+        podId: p.podId,
+        workstream: p.workstream,
+        lead: p.lead,
+        phases: [
+          { name: 'discover', dayStart: waveStart, dayEnd: Math.min(waveEnd, waveStart + 1) },
+          { name: 'implement', dayStart: Math.min(waveEnd, waveStart + 2), dayEnd: Math.min(waveEnd, waveStart + Math.max(2, waveSpan - 3)) },
+          { name: 'validate', dayStart: Math.min(waveEnd, waveEnd - 1), dayEnd: waveEnd }
+        ]
+      }))
+    });
+    dayCursor = waveEnd + 1;
+  });
+
+  const handoffs = [];
+  for (let i = 0; i < pods.length - 1; i += 1) {
+    handoffs.push({ fromPod: pods[i].podId, toPod: pods[i + 1].podId, reason: 'dependency-or-integration' });
+  }
+
+  return {
+    goal: plan.goal || null,
+    sprintDays,
+    maxParallelPods,
+    waveCount: waves.length,
+    timeline,
+    handoffs,
+    recommendations: [
+      'Run daily pod syncs with lead + reviewer from each active pod.',
+      'Run cross-pod integration checks at each wave boundary.',
+      'Keep one quality-focused pod active in every wave to reduce late regressions.'
+    ]
+  };
+}
+
+function inferWorkstreamsFromGoal(goal) {
+  const lower = String(goal || '').toLowerCase();
+  const streams = [];
+  streams.push('requirements and scope definition');
+
+  if (/ux|ui|design|frontend|responsive|mobile/.test(lower)) streams.push('ux and frontend implementation');
+  if (/backend|api|service|database|schema/.test(lower)) streams.push('backend and data architecture');
+  if (/security|auth|oauth|oidc|token|permission/.test(lower)) streams.push('security and identity hardening');
+  if (/bug|test|quality|qa|regression/.test(lower)) streams.push('quality engineering and bug fixing');
+  if (/perf|performance|latency|memory|speed/.test(lower)) streams.push('performance profiling and optimization');
+  if (/docs|documentation|readme|guide/.test(lower)) streams.push('documentation and developer onboarding');
+
+  streams.push('release planning and rollout');
+  return [...new Set(streams)];
+}
+
+function classifyWorkstreamDomain(workstream) {
+  const lower = String(workstream || '').toLowerCase();
+  if (/ux|ui|design|visual|mobile|responsive/.test(lower)) return 'ux';
+  if (/front|browser|client/.test(lower)) return 'frontend';
+  if (/backend|api|service|distributed/.test(lower)) return 'backend';
+  if (/data|database|etl|pipeline|schema/.test(lower)) return 'data';
+  if (/security|auth|identity|token|threat/.test(lower)) return 'security';
+  if (/test|quality|bug|regression|validate/.test(lower)) return 'quality';
+  if (/prompt|mcp|llm|agent|ai/.test(lower)) return 'ai';
+  if (/doc|guide|readme|reference/.test(lower)) return 'docs';
+  if (/release|deploy|ci|cd|infra|ops|monitor/.test(lower)) return 'platform';
+  if (/customer|support|incident/.test(lower)) return 'operations';
+  return 'product';
+}
+
+function suggestSuccessCriteria(domain) {
+  const map = {
+    ux: ['Validated user flow', 'Accessible interaction states', 'Responsive layout pass'],
+    frontend: ['Performance budget met', 'No critical UI regressions', 'Browser compatibility pass'],
+    backend: ['Contract tests passing', 'Error handling coverage', 'Throughput baseline met'],
+    data: ['Schema migration validated', 'Integrity checks pass', 'Query performance acceptable'],
+    security: ['Threat checks reviewed', 'Auth flows validated', 'No high-severity findings'],
+    quality: ['Regression suite green', 'Critical bugs closed', 'Coverage improved'],
+    ai: ['Tool contract adherence', 'Prompt quality validated', 'Agent workflow reliability improved'],
+    docs: ['Docs updated for new behaviors', 'Examples tested', 'Navigation clear for AI and humans'],
+    platform: ['CI gates stable', 'Deploy and rollback tested', 'Operational checks green'],
+    operations: ['Incident playbooks updated', 'Escalation paths clear', 'Monitoring alerts tuned'],
+    product: ['Scope aligned to outcomes', 'Milestones tracked', 'Dependencies resolved']
+  };
+  return map[domain] || map.product;
+}
+
 function validateJsonSchema(args) {
   const schema = args.schema;
   const data   = args.data;
@@ -1832,6 +2142,34 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
 7. Tag passing results with \`tag_test_results\` before a release so you have a known-good baseline.`;
   }
 
+    if (name === 'specialist_team_blueprint') {
+     const goal = args.goal || 'build and evolve a complex software product';
+     const teamSize = args.teamSize || '12';
+     return `Specialist team blueprint for: ${goal}
+
+  1. Generate your role pool:
+    - Run \`generate_specialist_agent_roster\` to pull from the 40-role catalog.
+    - Start with 8-15 active specialists (requested: ${teamSize}) and keep the rest as on-demand experts.
+
+  2. Build execution pods:
+    - Run \`plan_specialist_assignments\` with your goal and key workstreams.
+    - Keep each pod small: 1 lead, 2-3 support specialists, 1 cross-reviewer.
+
+  3. Enable concurrent collaboration:
+    - Run \`build_collaboration_schedule\` with \`maxParallelPods\` set to 2-4.
+    - Work in waves: discovery -> implement -> validate.
+
+  4. Keep quality always-on:
+    - Attach quality/security reviewers to every pod.
+    - Run validation gates per wave boundary.
+
+  5. Continuous improvement loop:
+    - After each wave, update roadmap progress and rerun assignment planning for remaining work.
+    - Keep a rotating bug-hunter and UX specialist active for feedback-driven refinement.
+
+  This creates a software-company style operating model: domain experts collaborating in parallel pods with structured handoffs and always-on validation.`;
+    }
+
   if (name === 'release_prep_checklist') {
     const serverDir = args.serverDir || '/path/to/server';
     const version   = args.version   || 'vX.Y.Z';
@@ -1866,7 +2204,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.1.0',
+      version: '0.2.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT

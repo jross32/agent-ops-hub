@@ -1,6 +1,6 @@
 # agent-ops-hub — AI Tool Reference (DOCS.md)
 
-Version: **0.1.0** | Port: **11200** (HTTP) + stdio | Tools: **24** | Prompts: **3**
+Version: **0.2.0** | Port: **11200** (HTTP) + stdio | Tools: **27** | Prompts: **4**
 
 > **For AI agents:** This is your primary orchestration server. Start here to plan tasks, validate work, compare server capabilities, track roadmaps, and analyze test artifacts. Use the prompts to get structured guidance before starting complex workflows.
 
@@ -17,12 +17,13 @@ Version: **0.1.0** | Port: **11200** (HTTP) + stdio | Tools: **24** | Prompts: *
 | Find tools with no tests | `find_missing_tests` |
 | Generate a changelog from git | `generate_changelog_entry` |
 | Track project roadmap tasks | `roadmap_tracker` |
+| Build a 40-role specialist team plan | `plan_specialist_assignments` |
 | Check JS file syntax quality | `code_quality_gate` |
 | Get workflow guidance (prompt) | Prompt: `agent_ops_workflow` |
 
 ---
 
-## All 24 Tools
+## All 27 Tools
 
 ### Orchestration & Intelligence
 
@@ -196,6 +197,27 @@ Read, write, or update tasks in a roadmap JSON file (phases → tasks structure)
 ```
 Returns: `{ action, roadmapPath, totalTasks?, doneTasks?, completionPercent? }`
 
+#### `generate_specialist_agent_roster`
+Return a filtered roster from the built-in 40-role specialist catalog.
+```json
+{ "domains": ["ux", "quality", "security"], "includeStrengths": true, "maxRoles": 20 }
+```
+Returns: `{ totalCatalogRoles, selectedCount, byDomain, roles: [...] }`
+
+#### `plan_specialist_assignments`
+Build specialist pods for a goal and workstreams, with lead/support/reviewer assignments.
+```json
+{ "goal": "Improve UX and bug finding across MCP servers", "maxAgentsPerWorkstream": 4, "includeCrossReview": true }
+```
+Returns: `{ goal, podCount, pods: [{ podId, workstream, lead, support, reviewer, successCriteria }] }`
+
+#### `build_collaboration_schedule`
+Create a concurrent wave-based schedule from a specialist assignment plan.
+```json
+{ "plan": { "goal": "...", "pods": [] }, "sprintDays": 14, "maxParallelPods": 3 }
+```
+Returns: `{ waveCount, timeline: [...], handoffs: [...], recommendations: [...] }`
+
 ---
 
 ### Release & Changelog
@@ -216,7 +238,7 @@ Returns: `{ version, date, commitCount, outputPath, notes }`
 
 ---
 
-## 3 Prompts
+## 4 Prompts
 
 ### `agent_ops_workflow`
 Get step-by-step guidance for using agent-ops-hub to orchestrate a complex goal.
@@ -228,6 +250,12 @@ Arguments: goal (optional) — describe your high-level objective
 Get recommended validation gate patterns, test ordering, and severity level guidance.
 ```
 Arguments: serverName (optional) — name of the server being validated
+```
+
+### `specialist_team_blueprint`
+Get a structured blueprint for running a software-company style specialist team (40-role catalog, pod planning, concurrent waves).
+```
+Arguments: goal (optional), teamSize (optional)
 ```
 
 ### `release_prep_checklist`
@@ -253,6 +281,6 @@ POST http://127.0.0.1:11200/mcp     → same as stdio JSON-RPC; body: { jsonrpc,
 cd agent-ops-hub
 npm install
 node mcp-server.js        # stdio mode
-node tests/run-all.js     # run all 10 test groups
+node tests/run-all.js     # run all 11 test groups
 node --check mcp-server.js # syntax check
 ```
