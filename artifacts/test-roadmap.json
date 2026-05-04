@@ -1,0 +1,26 @@
+{
+  "title": "Test Roadmap",
+  "phases": [
+    {
+      "id": "p1",
+      "title": "Phase 1",
+      "tasks": [
+        {
+          "id": "t1",
+          "title": "Add validate_json_schema",
+          "status": "done"
+        },
+        {
+          "id": "t2",
+          "title": "Add find_missing_tests",
+          "status": "done"
+        },
+        {
+          "id": "t3",
+          "title": "Add roadmap_tracker",
+          "status": "done"
+        }
+      ]
+    }
+  ]
+}

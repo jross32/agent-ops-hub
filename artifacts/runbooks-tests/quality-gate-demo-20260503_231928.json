@@ -1,0 +1,26 @@
+{
+  "id": "quality-gate-demo-20260503_231928",
+  "name": "quality-gate-demo",
+  "objective": "Prove repeatable runbook generation in tests",
+  "createdAt": "2026-05-04T03:19:28.903Z",
+  "steps": [
+    {
+      "index": 1,
+      "id": "preflight",
+      "title": "Preflight",
+      "command": "node --version",
+      "mustPass": true
+    },
+    {
+      "index": 2,
+      "id": "verify",
+      "title": "Verify npm",
+      "command": "npm --version",
+      "mustPass": true
+    }
+  ],
+  "policy": {
+    "stopOnFail": true,
+    "requiresValidation": true
+  }
+}

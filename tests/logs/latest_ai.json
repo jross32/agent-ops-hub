@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-04T03:14:43.747Z",
+  "timestamp": "2026-05-04T03:21:53.990Z",
   "suite": "agent-ops-hub-all",
   "server": {
     "script": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\mcp-server.js",
@@ -11,17 +11,17 @@
     "node": "v24.14.0"
   },
   "summary": {
-    "total": 9,
-    "passed": 9,
+    "total": 10,
+    "passed": 10,
     "failed": 0,
     "skipped": 0,
-    "durationMs": 7628
+    "durationMs": 4862
   },
   "tests": [
     {
       "id": "group-a-capabilities",
       "status": "pass",
-      "durationMs": 335,
+      "durationMs": 125,
       "notes": "discovered 24 tools and 105 local MCP folders",
       "details": {
         "toolsDiscovered": 24,
@@ -31,7 +31,7 @@
     {
       "id": "group-b-research",
       "status": "pass",
-      "durationMs": 740,
+      "durationMs": 485,
       "notes": "research scanned 2 urls (success=2, errors=0)",
       "details": {
         "scanned": 2,
@@ -42,17 +42,17 @@
     {
       "id": "group-c-runbooks",
       "status": "pass",
-      "durationMs": 9,
-      "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_231437.json",
+      "durationMs": 7,
+      "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_232150.json",
       "details": {
-        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_231437.json",
+        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_232150.json",
         "stepCount": 2
       }
     },
     {
       "id": "group-d-validation-gates",
       "status": "pass",
-      "durationMs": 3079,
+      "durationMs": 1733,
       "notes": "validation gate: backward compat pass + severity-level warn-continues behavior verified",
       "details": {
         "plainGate": {
@@ -68,7 +68,7 @@
     {
       "id": "group-e-artifact-summary",
       "status": "pass",
-      "durationMs": 8,
+      "durationMs": 5,
       "notes": "artifact summary produced expected failed-test signal; trend.runsAnalyzed=0",
       "details": {
         "summary": {
@@ -87,21 +87,21 @@
     {
       "id": "group-f-agent-mode",
       "status": "pass",
-      "durationMs": 3092,
-      "notes": "preflight=100, avgBenchmarkMs=1108",
+      "durationMs": 1971,
+      "notes": "preflight=100, avgBenchmarkMs=626",
       "details": {
         "readinessScore": 100,
         "benchmark": {
-          "avgDurationMs": 1108,
-          "minDurationMs": 747,
-          "maxDurationMs": 1468
+          "avgDurationMs": 626,
+          "minDurationMs": 582,
+          "maxDurationMs": 669
         }
       }
     },
     {
       "id": "group-g-diff-plans",
       "status": "pass",
-      "durationMs": 11,
+      "durationMs": 8,
       "notes": "diff found: +1 added, -1 removed, ~1 changed",
       "details": {
         "totalChanges": 3,
@@ -158,6 +158,32 @@
         "agentOpsHubTools": 30,
         "osBridgeAdded": 69,
         "shared": 1
+      }
+    },
+    {
+      "id": "group-j-new-tools",
+      "status": "pass",
+      "durationMs": 165,
+      "notes": "validate_json_schema ✓, find_missing_tests (total=30, missing=30), code_quality_gate score=72 allPassed=true, roadmap_tracker ✓, scan_coverage=0/30",
+      "details": {
+        "validatePass": true,
+        "validateFail": true,
+        "findMissing": {
+          "total": 30,
+          "missing": 30
+        },
+        "qualityGate": {
+          "score": 72,
+          "allPassed": true
+        },
+        "roadmapTracker": {
+          "phaseId": "p1",
+          "taskId": "t3"
+        },
+        "scanCoverage": {
+          "total": 30,
+          "covered": 0
+        }
       }
     }
   ]
