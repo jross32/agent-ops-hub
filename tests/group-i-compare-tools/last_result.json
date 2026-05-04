@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-05-04T07:22:35.652Z",
-  "runStamp": "2026-05-04_032228",
+  "timestamp": "2026-05-04T07:46:22.098Z",
+  "runStamp": "2026-05-04_034617",
   "testFile": "group-i-compare-tools/test.js",
   "id": "group-i-compare-tools",
   "status": "pass",
-  "durationMs": 10,
-  "notes": "self: 58 tools identical; cross: +69 in os-bridge, -57 vs agent-ops-hub",
+  "durationMs": 12,
+  "notes": "self: 90 tools identical; cross: +69 in os-bridge, -89 vs agent-ops-hub",
   "details": {
-    "agentOpsHubTools": 58,
+    "agentOpsHubTools": 90,
     "osBridgeAdded": 69,
     "shared": 1
   }

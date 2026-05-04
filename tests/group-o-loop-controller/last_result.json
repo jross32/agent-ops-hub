@@ -1,16 +1,16 @@
 {
-  "timestamp": "2026-05-04T07:22:40.321Z",
-  "runStamp": "2026-05-04_032228",
+  "timestamp": "2026-05-04T07:46:25.359Z",
+  "runStamp": "2026-05-04_034617",
   "testFile": "group-o-loop-controller/test.js",
   "id": "group-o-loop-controller",
   "status": "pass",
-  "durationMs": 3490,
+  "durationMs": 2222,
   "notes": "loop controller: cyclesRun=2, totalCycles=2, snapshots=2, quality=77",
   "details": {
     "cyclesRun": 2,
     "totalCycles": 2,
     "snapshots": 2,
-    "nextPulseAt": "2026-05-04T07:32:37.142Z",
+    "nextPulseAt": "2026-05-04T07:56:23.338Z",
     "qualityScore": 77
   }
 }

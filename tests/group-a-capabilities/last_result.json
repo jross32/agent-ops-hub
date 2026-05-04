@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-05-04T07:22:29.372Z",
-  "runStamp": "2026-05-04_032228",
+  "timestamp": "2026-05-04T07:46:17.997Z",
+  "runStamp": "2026-05-04_034617",
   "testFile": "group-a-capabilities/test.js",
   "id": "group-a-capabilities",
   "status": "pass",
-  "durationMs": 181,
-  "notes": "discovered 44 tools and 106 local MCP folders",
+  "durationMs": 166,
+  "notes": "discovered 55 tools and 106 local MCP folders",
   "details": {
-    "toolsDiscovered": 44,
+    "toolsDiscovered": 55,
     "localMcpFolderCount": 106
   }
 }

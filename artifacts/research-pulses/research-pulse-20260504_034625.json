@@ -1,0 +1,91 @@
+{
+  "scanned": 5,
+  "scannedAt": "2026-05-04T07:46:25.343Z",
+  "keywords": [
+    "mcp",
+    "agent",
+    "workflow",
+    "orchestration",
+    "automation",
+    "prompt",
+    "evaluation",
+    "benchmark",
+    "security",
+    "parallel"
+  ],
+  "keywordCoverage": {
+    "mcp": 1,
+    "agent": 1,
+    "workflow": 0,
+    "orchestration": 0,
+    "automation": 0,
+    "prompt": 0,
+    "evaluation": 0,
+    "benchmark": 0,
+    "security": 0,
+    "parallel": 1
+  },
+  "scans": [
+    {
+      "url": "https://modelcontextprotocol.io/",
+      "error": "Response exceeds maxBytes (120000)",
+      "keywordScore": 0
+    },
+    {
+      "url": "https://github.blog/changelog/",
+      "error": "Response exceeds maxBytes (120000)",
+      "keywordScore": 0
+    },
+    {
+      "url": "https://platform.openai.com/docs/overview",
+      "statusCode": 403,
+      "title": null,
+      "keywordScore": 0
+    },
+    {
+      "url": "https://docs.github.com/en/copilot",
+      "error": "Response exceeds maxBytes (120000)",
+      "keywordScore": 0
+    },
+    {
+      "url": "https://playwright.dev/docs/intro",
+      "statusCode": 200,
+      "title": "Installation | Playwright",
+      "keywordScore": 3
+    }
+  ],
+  "ideas": [
+    {
+      "rank": 1,
+      "id": "parallel-execution-wave",
+      "sourceUrl": "https://playwright.dev/docs/intro",
+      "title": "Increase parallel execution wave capacity",
+      "action": "Add wave-aware scheduling and dynamic parallelism limits for multi-agent pods.",
+      "score": 8
+    },
+    {
+      "rank": 2,
+      "id": "continuous-evals-loop",
+      "sourceUrl": "https://playwright.dev/docs/intro",
+      "title": "Expand continuous eval loop",
+      "action": "Run periodic eval suites after each improvement pulse and store trend snapshots.",
+      "score": 8
+    },
+    {
+      "rank": 3,
+      "id": "agent-role-routing",
+      "sourceUrl": "https://playwright.dev/docs/intro",
+      "title": "Improve specialist role routing",
+      "action": "Route tasks to specialist pods by domain confidence and track assignment outcomes.",
+      "score": 8
+    }
+  ],
+  "recommendations": [
+    "Add wave-aware scheduling and dynamic parallelism limits for multi-agent pods.",
+    "Run periodic eval suites after each improvement pulse and store trend snapshots.",
+    "Route tasks to specialist pods by domain confidence and track assignment outcomes."
+  ],
+  "persistedAt": "2026-05-04T07:46:25.344Z",
+  "cadenceMinutes": 10,
+  "nextSuggestedRunAt": "2026-05-04T07:56:25.344Z"
+}

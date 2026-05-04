@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-04T07:22:32.038Z",
-  "runStamp": "2026-05-04_032228",
+  "timestamp": "2026-05-04T07:46:19.779Z",
+  "runStamp": "2026-05-04_034617",
   "testFile": "group-d-validation-gates/test.js",
   "id": "group-d-validation-gates",
   "status": "pass",
-  "durationMs": 2361,
+  "durationMs": 1454,
   "notes": "validation gate: backward compat pass + severity-level warn-continues behavior verified",
   "details": {
     "plainGate": {
