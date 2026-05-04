@@ -874,6 +874,14 @@ const PROMPTS = [
       { name: 'serverDir', description: 'Path to the MCP server directory being released', required: false },
       { name: 'version',   description: 'Target version string (e.g. v0.1.0)', required: false }
     ]
+  },
+  {
+    name: 'multi_repo_ops_playbook',
+    description: 'Step-by-step operational playbook for managing changes, drift checks, changelogs, and releases across multiple MCP server repos simultaneously.',
+    arguments: [
+      { name: 'reposRoot', description: 'Root directory containing all repos (e.g. /path/to/mcp-servers)', required: false },
+      { name: 'goal',      description: 'What you are trying to accomplish across the repos', required: false }
+    ]
   }
 ];
 
@@ -4014,6 +4022,41 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
 [ ] 9. Tag: \`git tag ${version} && git push && git push --tags\`.
 [ ] 10. Tag test results with \`tag_test_results\` label="${version}" as post-release baseline.
 [ ] 11. Verify the server passes \`check_server_health\` after release commit.`;
+  }
+
+  if (name === 'multi_repo_ops_playbook') {
+    const reposRoot = args.reposRoot || '/path/to/mcp-servers';
+    const goal = args.goal || 'synchronize, validate, and release all repos';
+    return `Multi-repo operations playbook
+Goal: ${goal}
+Repos root: ${reposRoot}
+
+## Phase 1 — Inventory & Drift Check
+1. Run \`list_local_mcp_servers\` with rootPath="${reposRoot}" to get the full repo inventory.
+2. For each repo, run \`drift_detection_check\` to identify uncommitted changes, remote divergence, and stale deps.
+3. Run \`multi_repo_sync_status\` with rootPath="${reposRoot}" for a summary table.
+4. Triage findings: repos with 'critical' or 'high' severity drift are addressed first.
+
+## Phase 2 — Parallel Work
+5. Group repos by risk level (from drift check) into work waves.
+6. For each repo needing changes:
+   a. Run \`code_complexity_scan\` on the main server file to identify hotspots.
+   b. Run \`estimate_refactor_risk\` to decide if changes are safe to make now.
+   c. Make changes; run \`run_validation_gate\` after each change.
+
+## Phase 3 — Testing
+7. For each repo: run \`node tests/run-all.js\` — all must pass before proceeding.
+8. Use \`regression_root_cause_analysis\` on any test failures to classify and fix quickly.
+
+## Phase 4 — Changelog & Release
+9. Run \`generate_changelog\` for each repo to produce release notes.
+10. Bump version in package.json for each changed repo.
+11. Commit and push all repos. Optionally tag milestone repos.
+
+## Phase 5 — Post-Release Verification
+12. Re-run \`multi_repo_sync_status\` — all repos should show clean/synced state.
+13. Archive test logs and changelog artifacts.
+14. Record a research pulse (\`record_research_pulse\`) with learnings from this release cycle.`;
   }
 
     if (name === 'continuous_research_loop') {
