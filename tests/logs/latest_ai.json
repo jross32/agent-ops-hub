@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-05-03T15:31:47.588Z",
+  "timestamp": "2026-05-04T03:14:43.747Z",
   "suite": "agent-ops-hub-all",
   "server": {
     "script": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\mcp-server.js",
-    "toolsDiscovered": 11
+    "toolsDiscovered": 24
   },
   "environment": {
     "platform": "win32",
@@ -15,23 +15,23 @@
     "passed": 9,
     "failed": 0,
     "skipped": 0,
-    "durationMs": 6403
+    "durationMs": 7628
   },
   "tests": [
     {
       "id": "group-a-capabilities",
       "status": "pass",
-      "durationMs": 51,
-      "notes": "discovered 11 tools and 4 local MCP folders",
+      "durationMs": 335,
+      "notes": "discovered 24 tools and 105 local MCP folders",
       "details": {
-        "toolsDiscovered": 11,
-        "localMcpFolderCount": 4
+        "toolsDiscovered": 24,
+        "localMcpFolderCount": 105
       }
     },
     {
       "id": "group-b-research",
       "status": "pass",
-      "durationMs": 359,
+      "durationMs": 740,
       "notes": "research scanned 2 urls (success=2, errors=0)",
       "details": {
         "scanned": 2,
@@ -42,17 +42,17 @@
     {
       "id": "group-c-runbooks",
       "status": "pass",
-      "durationMs": 8,
-      "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_113141.json",
+      "durationMs": 9,
+      "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_231437.json",
       "details": {
-        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_113141.json",
+        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260503_231437.json",
         "stepCount": 2
       }
     },
     {
       "id": "group-d-validation-gates",
       "status": "pass",
-      "durationMs": 2550,
+      "durationMs": 3079,
       "notes": "validation gate: backward compat pass + severity-level warn-continues behavior verified",
       "details": {
         "plainGate": {
@@ -68,7 +68,7 @@
     {
       "id": "group-e-artifact-summary",
       "status": "pass",
-      "durationMs": 9,
+      "durationMs": 8,
       "notes": "artifact summary produced expected failed-test signal; trend.runsAnalyzed=0",
       "details": {
         "summary": {
@@ -87,21 +87,21 @@
     {
       "id": "group-f-agent-mode",
       "status": "pass",
-      "durationMs": 3151,
-      "notes": "preflight=100, avgBenchmarkMs=1040",
+      "durationMs": 3092,
+      "notes": "preflight=100, avgBenchmarkMs=1108",
       "details": {
         "readinessScore": 100,
         "benchmark": {
-          "avgDurationMs": 1040,
-          "minDurationMs": 1032,
-          "maxDurationMs": 1047
+          "avgDurationMs": 1108,
+          "minDurationMs": 747,
+          "maxDurationMs": 1468
         }
       }
     },
     {
       "id": "group-g-diff-plans",
       "status": "pass",
-      "durationMs": 13,
+      "durationMs": 11,
       "notes": "diff found: +1 added, -1 removed, ~1 changed",
       "details": {
         "totalChanges": 3,
@@ -142,7 +142,7 @@
     {
       "id": "group-h-scaffold",
       "status": "pass",
-      "durationMs": 5,
+      "durationMs": 4,
       "notes": "scaffold generated (dry) and written to C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\scaffold-test\\group-z-validation\\test.js",
       "details": {
         "writtenPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\scaffold-test\\group-z-validation\\test.js",
@@ -152,12 +152,12 @@
     {
       "id": "group-i-compare-tools",
       "status": "pass",
-      "durationMs": 7,
-      "notes": "self: 12 tools identical; cross: +43 in os-bridge, -12 vs agent-ops-hub",
+      "durationMs": 6,
+      "notes": "self: 30 tools identical; cross: +69 in os-bridge, -29 vs agent-ops-hub",
       "details": {
-        "agentOpsHubTools": 12,
-        "osBridgeAdded": 43,
-        "shared": 0
+        "agentOpsHubTools": 30,
+        "osBridgeAdded": 69,
+        "shared": 1
       }
     }
   ]

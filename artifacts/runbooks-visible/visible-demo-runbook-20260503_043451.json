@@ -1,0 +1,26 @@
+{
+  "id": "visible-demo-runbook-20260503_043451",
+  "name": "visible-demo-runbook",
+  "objective": "Show visible execution for research + validation gates",
+  "createdAt": "2026-05-03T08:34:51.892Z",
+  "steps": [
+    {
+      "index": 1,
+      "id": "list",
+      "title": "List MCP servers",
+      "command": "node --version",
+      "mustPass": true
+    },
+    {
+      "index": 2,
+      "id": "gate",
+      "title": "Run validation",
+      "command": "npm --version",
+      "mustPass": true
+    }
+  ],
+  "policy": {
+    "stopOnFail": true,
+    "requiresValidation": true
+  }
+}

@@ -21,6 +21,14 @@ npm run check
 npm test
 ```
 
+or run:
+
+```powershell
+npm run verify
+```
+
+Use `RELEASE_CHECKLIST.md` for the full release flow.
+
 ## Tool Change Standard
 
 When adding a new MCP tool, always do all of the following:

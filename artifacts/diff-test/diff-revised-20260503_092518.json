@@ -1,0 +1,26 @@
+{
+  "id": "diff-revised-20260503_092518",
+  "name": "diff-revised",
+  "objective": "revised plan with changes",
+  "createdAt": "2026-05-03T13:25:18.637Z",
+  "steps": [
+    {
+      "index": 1,
+      "id": "step-a",
+      "title": "Step A Modified",
+      "command": "node --version",
+      "mustPass": true
+    },
+    {
+      "index": 2,
+      "id": "step-c",
+      "title": "Step C (new)",
+      "command": "npm list --depth=0",
+      "mustPass": true
+    }
+  ],
+  "policy": {
+    "stopOnFail": true,
+    "requiresValidation": true
+  }
+}

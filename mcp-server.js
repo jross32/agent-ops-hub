@@ -202,8 +202,220 @@ const TOOLS = [
       required: ['baselineServerPath', 'revisedServerPath'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'scan_tool_coverage',
+    description: 'Scan a local MCP server directory and its tests/ folder to report which tools have test coverage and which are missing tests',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverDir: { type: 'string', description: 'Absolute path to the MCP server directory (must contain mcp-server.js and tests/)' }
+      },
+      required: ['serverDir'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'estimate_tool_complexity',
+    description: 'Parse a mcp-server.js file and rank its tools by schema complexity (property count, required fields, nested depth)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverPath: { type: 'string', description: 'Absolute path to mcp-server.js' },
+        topN:       { type: 'number', minimum: 1, maximum: 100, description: 'How many top tools to return (default: all)' }
+      },
+      required: ['serverPath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'generate_changelog_entry',
+    description: 'Run git log on a repo directory and generate a structured CHANGELOG entry from recent commits',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoDir:    { type: 'string', description: 'Absolute path to the git repository' },
+        sinceTag:   { type: 'string', description: 'Git tag or SHA to generate log from (e.g. v0.0.9). Defaults to last 20 commits' },
+        version:    { type: 'string', description: 'Version string for this changelog entry (e.g. v0.1.0)' },
+        timeoutMs:  { type: 'number', minimum: 1000, maximum: 30000 }
+      },
+      required: ['repoDir'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'code_quality_gate',
+    description: 'Run node --check on one or more JS files and report syntax validity, line count, and a quality score',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files:     { type: 'array', items: { type: 'string' }, minItems: 1, description: 'Absolute paths to JS files to check' },
+        timeoutMs: { type: 'number', minimum: 1000, maximum: 30000 }
+      },
+      required: ['files'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'dependency_audit',
+    description: 'Run npm outdated in a project directory and return a structured report of outdated packages',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectDir: { type: 'string', description: 'Absolute path to the npm project directory' },
+        timeoutMs:  { type: 'number', minimum: 1000, maximum: 60000 }
+      },
+      required: ['projectDir'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'server_capability_matrix',
+    description: 'Compare tools and capabilities across multiple MCP server directories and produce a feature matrix',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverDirs: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 2,
+          maxItems: 20,
+          description: 'List of absolute paths to MCP server directories'
+        }
+      },
+      required: ['serverDirs'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'roadmap_tracker',
+    description: 'Read or write a roadmap JSON file tracking phases, tasks, and completion status',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action:      { type: 'string', enum: ['read', 'write', 'update_task'], description: 'read: return current roadmap; write: create/replace; update_task: update a single task status' },
+        roadmapPath: { type: 'string', description: 'Absolute path to the roadmap JSON file' },
+        roadmap:     { type: 'object', description: 'Full roadmap object (required for write action)' },
+        phaseId:     { type: 'string', description: 'Phase ID (required for update_task)' },
+        taskId:      { type: 'string', description: 'Task ID within the phase (required for update_task)' },
+        status:      { type: 'string', enum: ['pending', 'in-progress', 'done', 'blocked'], description: 'New status (required for update_task)' }
+      },
+      required: ['action', 'roadmapPath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'write_release_notes',
+    description: 'Generate formatted release notes from git log between two refs and optionally write to a file',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoDir:    { type: 'string', description: 'Absolute path to the git repository' },
+        fromRef:    { type: 'string', description: 'Starting ref (tag/SHA). Omit to use last 30 commits' },
+        toRef:      { type: 'string', description: 'Ending ref (default: HEAD)' },
+        version:    { type: 'string', description: 'Release version label (e.g. v0.1.0)' },
+        outputPath: { type: 'string', description: 'If provided, write release notes to this file path' },
+        timeoutMs:  { type: 'number', minimum: 1000, maximum: 30000 }
+      },
+      required: ['repoDir'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'agent_task_planner',
+    description: 'Break a high-level task description into an ordered list of actionable steps with complexity estimates',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task:        { type: 'string', description: 'High-level task or goal to decompose' },
+        context:     { type: 'string', description: 'Optional context about the environment or constraints' },
+        maxSteps:    { type: 'number', minimum: 1, maximum: 50, description: 'Maximum number of steps to generate (default: 10)' },
+        outputPath:  { type: 'string', description: 'If provided, write the plan JSON to this file' }
+      },
+      required: ['task'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'execution_history_summary',
+    description: 'Scan a logs/runs directory and produce a trend summary of pass rates, durations, and failure patterns across past runs',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        runsDir:  { type: 'string', description: 'Absolute path to a runs/ directory containing timestamped run subdirectories' },
+        lastN:    { type: 'number', minimum: 1, maximum: 200, description: 'How many most-recent runs to analyze (default: 20)' }
+      },
+      required: ['runsDir'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'find_missing_tests',
+    description: 'Given a MCP server directory, identify tools defined in mcp-server.js that have no corresponding test group folder in tests/',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverDir: { type: 'string', description: 'Absolute path to the MCP server directory' }
+      },
+      required: ['serverDir'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'tag_test_results',
+    description: 'Read the latest test results from a logs directory and save a tagged snapshot with a custom label',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        logsDir:   { type: 'string', description: 'Absolute path to the logs directory containing latest_ai.json' },
+        tag:       { type: 'string', description: 'Label to attach to this snapshot (e.g. pre-release, post-refactor)' },
+        outputDir: { type: 'string', description: 'Directory to write the tagged snapshot (defaults to logsDir/tagged/)' }
+      },
+      required: ['logsDir', 'tag'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'validate_json_schema',
+    description: 'Validate a JSON object against a JSON Schema definition and return a structured pass/fail report with detailed errors',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        schema: { type: 'object', description: 'JSON Schema object to validate against' },
+        data:   { description: 'JSON value to validate (any type)' }
+      },
+      required: ['schema', 'data'],
+      additionalProperties: false
+    }
   }
 ];
+
+const PROMPTS = [
+  {
+    name: 'agent_ops_workflow',
+    description: 'Step-by-step guide for using agent-ops-hub to orchestrate complex multi-server agent operations',
+    arguments: [
+      { name: 'goal', description: 'High-level goal or task you want to accomplish', required: false }
+    ]
+  },
+  {
+    name: 'validation_strategy',
+    description: 'Recommended validation gate strategy for MCP server development — test setup, gate ordering, and severity levels',
+    arguments: [
+      { name: 'serverName', description: 'Name of the MCP server being validated', required: false }
+    ]
+  },
+  {
+    name: 'release_prep_checklist',
+    description: 'Full release preparation checklist for an MCP server: tests, changelog, version bump, tag, and push',
+    arguments: [
+      { name: 'serverDir', description: 'Path to the MCP server directory being released', required: false },
+      { name: 'version',   description: 'Target version string (e.g. v0.1.0)', required: false }
+    ]
+  }
+];
+
+const HTTP_PORT = 11200;
 
 let inputBuffer = '';
 
@@ -247,16 +459,29 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '1.0.0'
+        version: '0.1.0'
       },
       capabilities: {
-        tools: {}
+        tools: {},
+        prompts: {}
       }
     });
   }
 
   if (method === 'tools/list') {
     return sendResult(id, { tools: TOOLS });
+  }
+
+  if (method === 'prompts/list') {
+    return sendResult(id, { prompts: PROMPTS });
+  }
+
+  if (method === 'prompts/get') {
+    const promptName = params && params.name;
+    const promptArgs = (params && params.arguments) || {};
+    const prompt = PROMPTS.find((p) => p.name === promptName);
+    if (!prompt) return sendError(id, -32602, `Unknown prompt: ${promptName}`);
+    return sendResult(id, { description: prompt.description, messages: [{ role: 'user', content: { type: 'text', text: buildPromptText(promptName, promptArgs) } }] });
   }
 
   if (method === 'tools/call') {
@@ -305,6 +530,32 @@ async function runTool(name, args) {
       return checkServerHealth(args);
     case 'compare_mcp_server_tools':
       return compareMcpServerTools(args);
+    case 'scan_tool_coverage':
+      return scanToolCoverage(args);
+    case 'estimate_tool_complexity':
+      return estimateToolComplexity(args);
+    case 'generate_changelog_entry':
+      return generateChangelogEntry(args);
+    case 'code_quality_gate':
+      return codeQualityGate(args);
+    case 'dependency_audit':
+      return dependencyAudit(args);
+    case 'server_capability_matrix':
+      return serverCapabilityMatrix(args);
+    case 'roadmap_tracker':
+      return roadmapTracker(args);
+    case 'write_release_notes':
+      return writeReleaseNotes(args);
+    case 'agent_task_planner':
+      return agentTaskPlanner(args);
+    case 'execution_history_summary':
+      return executionHistorySummary(args);
+    case 'find_missing_tests':
+      return findMissingTests(args);
+    case 'tag_test_results':
+      return tagTestResults(args);
+    case 'validate_json_schema':
+      return validateJsonSchema(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -1006,6 +1257,665 @@ function clip(text, limit) {
 function sendResult(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
+
+// ── New tool implementations (v0.1.0) ────────────────────────────────────
+
+function scanToolCoverage(args) {
+  const serverDir = normalizeFsPath(args.serverDir);
+  const serverJs  = path.join(serverDir, 'mcp-server.js');
+  const testsDir  = path.join(serverDir, 'tests');
+
+  if (!fs.existsSync(serverJs)) throw new Error(`mcp-server.js not found in: ${serverDir}`);
+
+  const content  = fs.readFileSync(serverJs, 'utf8');
+  const toolRegex = /name:\s*['"]([a-z][a-z0-9_]{1,60})['"]/g;
+  const toolNames = [];
+  let m;
+  while ((m = toolRegex.exec(content)) !== null) {
+    if (!toolNames.includes(m[1])) toolNames.push(m[1]);
+  }
+
+  const testGroups = fs.existsSync(testsDir)
+    ? safeReadDir(testsDir).filter((e) => e.isDirectory()).map((e) => e.name)
+    : [];
+
+  const covered = [];
+  const uncovered = [];
+
+  for (const tool of toolNames) {
+    const slug = tool.replace(/_/g, '-');
+    const hasTest = testGroups.some((g) => g.includes(slug) || g.includes(tool));
+    if (hasTest) covered.push(tool);
+    else uncovered.push(tool);
+  }
+
+  return {
+    serverDir,
+    toolCount: toolNames.length,
+    coveragePercent: toolNames.length ? Math.round((covered.length / toolNames.length) * 100) : 0,
+    covered,
+    uncovered,
+    testGroups
+  };
+}
+
+function estimateToolComplexity(args) {
+  const serverPath = normalizeFsPath(args.serverPath);
+  const topN = Number.isFinite(args.topN) ? Math.floor(args.topN) : 9999;
+
+  if (!fs.existsSync(serverPath)) throw new Error(`Not found: ${serverPath}`);
+  const content = fs.readFileSync(serverPath, 'utf8');
+
+  function schemaDepth(obj, depth = 0) {
+    if (typeof obj !== 'object' || obj === null) return depth;
+    let max = depth;
+    for (const v of Object.values(obj)) {
+      const d = schemaDepth(v, depth + 1);
+      if (d > max) max = d;
+    }
+    return max;
+  }
+
+  // Extract tool blocks heuristically
+  const toolRegex = /\{\s*name:\s*['"]([a-z][a-z0-9_]{1,60})['"]/g;
+  const tools = [];
+  let match;
+  while ((match = toolRegex.exec(content)) !== null) {
+    const toolName = match[1];
+    // Grab the next ~800 chars as the schema region
+    const region = content.slice(match.index, match.index + 800);
+    const propCount = (region.match(/\btype:\s*['"][a-z]+['"]/g) || []).length;
+    const reqCount  = (region.match(/required:/g) || []).length;
+    const depth     = region.split('{').length - 1;
+    const score     = propCount * 2 + reqCount * 3 + depth;
+    tools.push({ tool: toolName, score, propCount, reqCount, nestDepth: depth });
+  }
+
+  tools.sort((a, b) => b.score - a.score);
+  return { serverPath, analyzed: tools.length, tools: tools.slice(0, topN) };
+}
+
+async function generateChangelogEntry(args) {
+  const repoDir  = normalizeFsPath(args.repoDir);
+  const version  = args.version || 'Unreleased';
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 15000;
+
+  const logCmd = args.sinceTag
+    ? `git log ${args.sinceTag}..HEAD --oneline --no-decorate`
+    : 'git log -20 --oneline --no-decorate';
+
+  const result = await runShellCommand(logCmd, repoDir, timeoutMs);
+  if (result.exitCode !== 0) throw new Error(`git log failed: ${clip(result.stderr, 300)}`);
+
+  const lines = result.stdout.split(/\r?\n/).filter(Boolean);
+  const date  = new Date().toISOString().slice(0, 10);
+
+  const categories = { Added: [], Changed: [], Fixed: [], Other: [] };
+  for (const line of lines) {
+    const msg = line.replace(/^[a-f0-9]+ /, '').trim();
+    if (/\badd(ed)?\b/i.test(msg))        categories.Added.push(msg);
+    else if (/\bfix(ed)?\b/i.test(msg))   categories.Fixed.push(msg);
+    else if (/\bupdate|change|refactor/i.test(msg)) categories.Changed.push(msg);
+    else                                   categories.Other.push(msg);
+  }
+
+  let entry = `## [${version}] — ${date}\n\n`;
+  for (const [cat, items] of Object.entries(categories)) {
+    if (items.length) {
+      entry += `### ${cat}\n${items.map((i) => `- ${i}`).join('\n')}\n\n`;
+    }
+  }
+
+  return { version, date, commitCount: lines.length, entry: entry.trim(), categories };
+}
+
+async function codeQualityGate(args) {
+  const files     = (args.files || []).map(normalizeFsPath);
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 15000;
+
+  const results = [];
+  for (const filePath of files) {
+    if (!fs.existsSync(filePath)) {
+      results.push({ file: filePath, exists: false, syntaxOk: false, lineCount: 0, score: 0 });
+      continue;
+    }
+    const content   = fs.readFileSync(filePath, 'utf8');
+    const lineCount = content.split('\n').length;
+    const result    = await runShellCommand(`node --check "${filePath}"`, path.dirname(filePath), timeoutMs);
+    const syntaxOk  = result.exitCode === 0;
+    const score     = syntaxOk ? Math.min(100, Math.round(100 - Math.max(0, lineCount - 500) / 50)) : 0;
+    results.push({
+      file: filePath,
+      exists: true,
+      syntaxOk,
+      lineCount,
+      score,
+      error: syntaxOk ? null : clip(result.stderr, 500)
+    });
+  }
+
+  const allPassed = results.every((r) => r.syntaxOk);
+  const avgScore  = results.length ? Math.round(results.reduce((a, r) => a + r.score, 0) / results.length) : 0;
+
+  return { allPassed, avgScore, results };
+}
+
+async function dependencyAudit(args) {
+  const projectDir = normalizeFsPath(args.projectDir);
+  const timeoutMs  = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 45000;
+
+  if (!fs.existsSync(path.join(projectDir, 'package.json'))) {
+    throw new Error(`No package.json found in: ${projectDir}`);
+  }
+
+  const result = await runShellCommand('npm outdated --json', projectDir, timeoutMs);
+  // npm outdated exits with 1 if any packages are outdated — that's normal
+  let outdated = {};
+  try {
+    outdated = JSON.parse(result.stdout || '{}');
+  } catch (_e) {
+    outdated = {};
+  }
+
+  const packages = Object.entries(outdated).map(([name, info]) => ({
+    name,
+    current: info.current || null,
+    wanted:  info.wanted  || null,
+    latest:  info.latest  || null,
+    type:    info.type    || 'dependencies'
+  }));
+
+  return {
+    projectDir,
+    outdatedCount: packages.length,
+    clean: packages.length === 0,
+    packages
+  };
+}
+
+function serverCapabilityMatrix(args) {
+  const serverDirs = (args.serverDirs || []).map(normalizeFsPath);
+  const matrix     = [];
+
+  for (const dir of serverDirs) {
+    const serverJs = path.join(dir, 'mcp-server.js');
+    const pkgJson  = path.join(dir, 'package.json');
+
+    let version   = null;
+    let toolCount = 0;
+    let toolNames = [];
+    let hasPrompts = false;
+    let hasHttp    = false;
+
+    if (fs.existsSync(pkgJson)) {
+      try { version = JSON.parse(fs.readFileSync(pkgJson, 'utf8')).version || null; } catch (_e) { /* skip */ }
+    }
+
+    if (fs.existsSync(serverJs)) {
+      const content = fs.readFileSync(serverJs, 'utf8');
+      const regex = /name:\s*['"]([a-z][a-z0-9_]{1,60})['"]/g;
+      let m;
+      while ((m = regex.exec(content)) !== null) {
+        if (!toolNames.includes(m[1])) toolNames.push(m[1]);
+      }
+      toolCount  = toolNames.length;
+      hasPrompts = content.includes('PROMPTS') || content.includes("'prompts/list'");
+      hasHttp    = content.includes('http.createServer') || content.includes('createServer');
+    }
+
+    matrix.push({
+      name: path.basename(dir),
+      path: dir,
+      version,
+      toolCount,
+      hasPrompts,
+      hasHttp,
+      toolNames
+    });
+  }
+
+  matrix.sort((a, b) => b.toolCount - a.toolCount);
+  const totalTools     = matrix.reduce((s, r) => s + r.toolCount, 0);
+  const withHttp       = matrix.filter((r) => r.hasHttp).length;
+  const withPrompts    = matrix.filter((r) => r.hasPrompts).length;
+
+  return { serverCount: matrix.length, totalTools, withHttp, withPrompts, matrix };
+}
+
+function roadmapTracker(args) {
+  const roadmapPath = normalizeFsPath(args.roadmapPath);
+
+  if (args.action === 'read') {
+    if (!fs.existsSync(roadmapPath)) throw new Error(`Roadmap not found: ${roadmapPath}`);
+    const data = JSON.parse(fs.readFileSync(roadmapPath, 'utf8'));
+    const phases = data.phases || [];
+    const totalTasks  = phases.reduce((s, p) => s + (p.tasks || []).length, 0);
+    const doneTasks   = phases.reduce((s, p) => s + (p.tasks || []).filter((t) => t.status === 'done').length, 0);
+    return { action: 'read', roadmapPath, roadmap: data, totalTasks, doneTasks, completionPercent: totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0 };
+  }
+
+  if (args.action === 'write') {
+    if (!args.roadmap) throw new Error('roadmap object required for write action');
+    fs.mkdirSync(path.dirname(roadmapPath), { recursive: true });
+    fs.writeFileSync(roadmapPath, JSON.stringify(args.roadmap, null, 2));
+    return { action: 'write', roadmapPath, written: true };
+  }
+
+  if (args.action === 'update_task') {
+    if (!args.phaseId || !args.taskId || !args.status) throw new Error('phaseId, taskId, and status required for update_task');
+    if (!fs.existsSync(roadmapPath)) throw new Error(`Roadmap not found: ${roadmapPath}`);
+    const data = JSON.parse(fs.readFileSync(roadmapPath, 'utf8'));
+    const phase = (data.phases || []).find((p) => p.id === args.phaseId);
+    if (!phase) throw new Error(`Phase not found: ${args.phaseId}`);
+    const task = (phase.tasks || []).find((t) => t.id === args.taskId);
+    if (!task) throw new Error(`Task not found: ${args.taskId} in phase ${args.phaseId}`);
+    const oldStatus = task.status;
+    task.status = args.status;
+    fs.writeFileSync(roadmapPath, JSON.stringify(data, null, 2));
+    return { action: 'update_task', phaseId: args.phaseId, taskId: args.taskId, oldStatus, newStatus: args.status };
+  }
+
+  throw new Error(`Unknown action: ${args.action}`);
+}
+
+async function writeReleaseNotes(args) {
+  const repoDir   = normalizeFsPath(args.repoDir);
+  const version   = args.version || 'Unreleased';
+  const toRef     = args.toRef   || 'HEAD';
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 15000;
+
+  const logCmd = args.fromRef
+    ? `git log ${args.fromRef}..${toRef} --pretty=format:"%h %s" --no-decorate`
+    : `git log -30 ${toRef} --pretty=format:"%h %s" --no-decorate`;
+
+  const result = await runShellCommand(logCmd, repoDir, timeoutMs);
+  if (result.exitCode !== 0) throw new Error(`git log failed: ${clip(result.stderr, 300)}`);
+
+  const commits = result.stdout.split(/\r?\n/).filter(Boolean);
+  const date    = new Date().toISOString().slice(0, 10);
+
+  let notes = `# Release Notes — ${version} (${date})\n\n`;
+  notes += `## Changes (${commits.length} commits)\n\n`;
+  for (const c of commits) {
+    notes += `- ${c}\n`;
+  }
+
+  if (args.outputPath) {
+    const outPath = normalizeFsPath(args.outputPath);
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, notes);
+    return { version, date, commitCount: commits.length, outputPath: outPath, notes };
+  }
+
+  return { version, date, commitCount: commits.length, outputPath: null, notes };
+}
+
+function agentTaskPlanner(args) {
+  const task     = String(args.task || '').trim();
+  const context  = String(args.context || '').trim();
+  const maxSteps = Number.isFinite(args.maxSteps) ? Math.floor(args.maxSteps) : 10;
+
+  if (!task) throw new Error('task is required');
+
+  // Heuristic decomposition using keyword patterns
+  const keywords = task.toLowerCase();
+  const steps = [];
+
+  const patterns = [
+    { trigger: /audit|scan|analyze|inspect/, title: 'Audit and inventory current state', complexity: 'low' },
+    { trigger: /test|verify|validate|check/, title: 'Run validation and test suite', complexity: 'medium' },
+    { trigger: /add|create|build|implement/, title: 'Implement core functionality', complexity: 'high' },
+    { trigger: /update|upgrade|refactor|improve/, title: 'Apply targeted improvements', complexity: 'medium' },
+    { trigger: /deploy|release|publish|ship/, title: 'Prepare and execute release', complexity: 'medium' },
+    { trigger: /doc|readme|changelog|notes/, title: 'Write documentation and release notes', complexity: 'low' },
+    { trigger: /fix|debug|resolve|patch/, title: 'Diagnose and fix identified issues', complexity: 'high' },
+    { trigger: /perf|optim|benchmark|speed/, title: 'Profile and optimize performance', complexity: 'high' },
+    { trigger: /clean|remove|delete|prune/, title: 'Clean up and remove obsolete items', complexity: 'low' },
+  ];
+
+  const used = new Set();
+  for (const p of patterns) {
+    if (p.trigger.test(keywords) && !used.has(p.title) && steps.length < maxSteps) {
+      steps.push({ id: `step-${steps.length + 1}`, title: p.title, complexity: p.complexity, status: 'pending' });
+      used.add(p.title);
+    }
+  }
+
+  // Always add a final review step
+  if (steps.length < maxSteps) {
+    steps.push({ id: `step-${steps.length + 1}`, title: 'Review results and confirm completion', complexity: 'low', status: 'pending' });
+  }
+
+  const plan = {
+    id: `plan-${toStamp(new Date())}`,
+    task,
+    context: context || null,
+    createdAt: new Date().toISOString(),
+    stepCount: steps.length,
+    steps
+  };
+
+  if (args.outputPath) {
+    const outPath = normalizeFsPath(args.outputPath);
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(plan, null, 2));
+    plan.outputPath = outPath;
+  }
+
+  return plan;
+}
+
+function executionHistorySummary(args) {
+  const runsDir = normalizeFsPath(args.runsDir);
+  const lastN   = Number.isFinite(args.lastN) ? Math.floor(args.lastN) : 20;
+
+  if (!fs.existsSync(runsDir)) throw new Error(`Runs directory not found: ${runsDir}`);
+
+  const runDirs = safeReadDir(runsDir)
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort()
+    .slice(-lastN);
+
+  const runs = [];
+  for (const dir of runDirs) {
+    // Try both naming conventions: ai.json and results.json
+    const candidates = ['ai.json', 'results.json', 'latest_ai.json'];
+    let data = null;
+    for (const fname of candidates) {
+      const p = path.join(runsDir, dir, fname);
+      if (fs.existsSync(p)) {
+        try { data = JSON.parse(fs.readFileSync(p, 'utf8')); break; } catch (_e) { /* skip */ }
+      }
+    }
+    if (!data) continue;
+
+    const s = data.summary || {};
+    const tests = data.tests || data.results || [];
+    const failedTests = tests.filter((t) => t.status === 'fail' || t.passed === false).map((t) => t.name || t.group || 'unknown');
+
+    runs.push({
+      run: dir,
+      timestamp: data.timestamp || null,
+      total: s.total || tests.length || 0,
+      passed: s.passed || tests.filter((t) => t.status === 'pass' || t.passed === true).length,
+      failed: s.failed || failedTests.length,
+      durationMs: s.duration_ms || s.durationMs || null,
+      failedTests
+    });
+  }
+
+  const passRates  = runs.filter((r) => r.total > 0).map((r) => r.passed / r.total * 100);
+  const avgPassRate = passRates.length ? Math.round(passRates.reduce((a, b) => a + b, 0) / passRates.length) : null;
+  const trend = passRates.length >= 2 ? (passRates[passRates.length - 1] >= passRates[0] ? 'improving' : 'declining') : 'stable';
+
+  const failureCounts = {};
+  for (const r of runs) {
+    for (const t of r.failedTests) {
+      failureCounts[t] = (failureCounts[t] || 0) + 1;
+    }
+  }
+  const topFailures = Object.entries(failureCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([test, count]) => ({ test, count }));
+
+  return { runsDir, runsAnalyzed: runs.length, avgPassRate, trend, topFailures, runs };
+}
+
+function findMissingTests(args) {
+  const serverDir = normalizeFsPath(args.serverDir);
+  const serverJs  = path.join(serverDir, 'mcp-server.js');
+  const testsDir  = path.join(serverDir, 'tests');
+
+  if (!fs.existsSync(serverJs)) throw new Error(`mcp-server.js not found in: ${serverDir}`);
+
+  const content = fs.readFileSync(serverJs, 'utf8');
+  const toolRegex = /name:\s*['"]([a-z][a-z0-9_]{1,60})['"]/g;
+  const toolNames = [];
+  let m;
+  while ((m = toolRegex.exec(content)) !== null) {
+    if (!toolNames.includes(m[1])) toolNames.push(m[1]);
+  }
+
+  const testGroups = fs.existsSync(testsDir)
+    ? safeReadDir(testsDir).filter((e) => e.isDirectory()).map((e) => e.name)
+    : [];
+
+  const missing = toolNames.filter((tool) => {
+    const slug = tool.replace(/_/g, '-');
+    return !testGroups.some((g) => g.includes(slug) || g.includes(tool));
+  });
+
+  return {
+    serverDir,
+    toolCount: toolNames.length,
+    missingCount: missing.length,
+    coveragePercent: toolNames.length ? Math.round(((toolNames.length - missing.length) / toolNames.length) * 100) : 0,
+    missingTests: missing,
+    testGroups
+  };
+}
+
+function tagTestResults(args) {
+  const logsDir  = normalizeFsPath(args.logsDir);
+  const tag      = String(args.tag || '').trim();
+  const outputDir = args.outputDir ? normalizeFsPath(args.outputDir) : path.join(logsDir, 'tagged');
+
+  if (!tag) throw new Error('tag is required');
+
+  const latestAiPath = path.join(logsDir, 'latest_ai.json');
+  if (!fs.existsSync(latestAiPath)) throw new Error(`latest_ai.json not found in: ${logsDir}`);
+
+  const data    = JSON.parse(fs.readFileSync(latestAiPath, 'utf8'));
+  const stamp   = toStamp(new Date());
+  const tagSlug = slugify(tag);
+  const filename = `${stamp}_${tagSlug}.json`;
+
+  const snapshot = {
+    tag,
+    taggedAt: new Date().toISOString(),
+    source: latestAiPath,
+    ...data
+  };
+
+  fs.mkdirSync(outputDir, { recursive: true });
+  const outPath = path.join(outputDir, filename);
+  fs.writeFileSync(outPath, JSON.stringify(snapshot, null, 2));
+
+  return {
+    tag,
+    stamp,
+    outputPath: outPath,
+    summary: data.summary || null
+  };
+}
+
+function validateJsonSchema(args) {
+  const schema = args.schema;
+  const data   = args.data;
+
+  if (!schema || typeof schema !== 'object') throw new Error('schema must be an object');
+
+  const errors = [];
+
+  function validate(schemaNode, value, path) {
+    const p = path || 'root';
+
+    if (schemaNode.type) {
+      const types = Array.isArray(schemaNode.type) ? schemaNode.type : [schemaNode.type];
+      const actualType = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+      if (!types.includes(actualType)) {
+        errors.push({ path: p, message: `Expected type ${types.join('|')}, got ${actualType}` });
+        return;
+      }
+    }
+
+    if (schemaNode.required && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      for (const req of schemaNode.required) {
+        if (!(req in value)) {
+          errors.push({ path: `${p}.${req}`, message: `Required property missing: ${req}` });
+        }
+      }
+    }
+
+    if (schemaNode.properties && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      for (const [key, subSchema] of Object.entries(schemaNode.properties)) {
+        if (key in value) {
+          validate(subSchema, value[key], `${p}.${key}`);
+        }
+      }
+
+      if (schemaNode.additionalProperties === false) {
+        const extra = Object.keys(value).filter((k) => !(k in (schemaNode.properties || {})));
+        for (const k of extra) {
+          errors.push({ path: `${p}.${k}`, message: `Additional property not allowed: ${k}` });
+        }
+      }
+    }
+
+    if (schemaNode.minimum !== undefined && typeof value === 'number' && value < schemaNode.minimum) {
+      errors.push({ path: p, message: `Value ${value} is below minimum ${schemaNode.minimum}` });
+    }
+
+    if (schemaNode.maximum !== undefined && typeof value === 'number' && value > schemaNode.maximum) {
+      errors.push({ path: p, message: `Value ${value} exceeds maximum ${schemaNode.maximum}` });
+    }
+
+    if (schemaNode.minLength !== undefined && typeof value === 'string' && value.length < schemaNode.minLength) {
+      errors.push({ path: p, message: `String length ${value.length} below minLength ${schemaNode.minLength}` });
+    }
+
+    if (schemaNode.enum && !schemaNode.enum.includes(value)) {
+      errors.push({ path: p, message: `Value not in enum: ${JSON.stringify(value)}` });
+    }
+  }
+
+  validate(schema, data, 'root');
+
+  return {
+    valid: errors.length === 0,
+    errorCount: errors.length,
+    errors
+  };
+}
+
+function buildPromptText(name, args) {
+  if (name === 'agent_ops_workflow') {
+    const goal = args.goal || 'your current task';
+    return `You are using agent-ops-hub, an MCP server for orchestrating complex agent operations.
+
+Goal: ${goal}
+
+Recommended workflow:
+1. Run \`agent_mode_preflight\` to verify the environment is ready (node, npm, MCP root accessible).
+2. Use \`list_local_mcp_servers\` to inventory available MCP servers.
+3. Use \`agent_task_planner\` to break your goal into ordered steps.
+4. For each step: use \`run_validation_gate\` to execute and verify commands.
+5. Use \`summarize_test_artifacts\` after test runs to get a machine-readable summary.
+6. Use \`roadmap_tracker\` to record progress and update task statuses.
+7. At the end: use \`generate_changelog_entry\` and \`write_release_notes\` to document what changed.
+
+Key tools available: agent_mode_preflight, agent_task_planner, run_validation_gate, benchmark_validation_gate, roadmap_tracker, scan_tool_coverage, find_missing_tests, generate_changelog_entry, write_release_notes, server_capability_matrix, dependency_audit.`;
+  }
+
+  if (name === 'validation_strategy') {
+    const serverName = args.serverName || 'your MCP server';
+    return `Validation strategy for ${serverName}:
+
+1. Syntax check first: \`node --check mcp-server.js\` — catches all parse errors instantly.
+2. Smoke test: run the fastest test group (e.g. group-a-capabilities) to confirm tools/list works.
+3. Full gate: run all test groups via \`run_validation_gate\` with commands like:
+   - \`{ command: "node --check mcp-server.js", severity: "error" }\`
+   - \`{ command: "node tests/smoke.js", severity: "error" }\`
+   - \`{ command: "node tests/run-all.js", severity: "warn" }\`
+4. Severity guidance: use \`error\` for blockers (syntax, tool list failures), \`warn\` for non-fatal issues.
+5. Use \`benchmark_validation_gate\` to establish a performance baseline before refactoring.
+6. After any major change: use \`scan_tool_coverage\` and \`find_missing_tests\` to maintain test parity.
+7. Tag passing results with \`tag_test_results\` before a release so you have a known-good baseline.`;
+  }
+
+  if (name === 'release_prep_checklist') {
+    const serverDir = args.serverDir || '/path/to/server';
+    const version   = args.version   || 'vX.Y.Z';
+    return `Release preparation checklist for ${version} in ${serverDir}:
+
+[ ] 1. Run full test suite: \`node tests/run-all.js\` — must be 100% pass.
+[ ] 2. Syntax check: \`node --check mcp-server.js\` — must exit 0.
+[ ] 3. Dependency audit: \`npm outdated\` — review and update critical packages.
+[ ] 4. Update version in package.json to ${version}.
+[ ] 5. Update version string in mcp-server.js \`serverInfo.version\`.
+[ ] 6. Run \`generate_changelog_entry\` to draft the changelog.
+[ ] 7. Run \`write_release_notes\` and save to RELEASE_NOTES.md.
+[ ] 8. Commit: \`git add -A && git commit -m "${version}: <description>"\`.
+[ ] 9. Tag: \`git tag ${version} && git push && git push --tags\`.
+[ ] 10. Tag test results with \`tag_test_results\` label="${version}" as post-release baseline.
+[ ] 11. Verify the server passes \`check_server_health\` after release commit.`;
+  }
+
+  return `Unknown prompt: ${name}`;
+}
+
+// ── HTTP server ──────────────────────────────────────────────────────────
+
+const httpServer = http.createServer((req, res) => {
+  const url  = req.url || '/';
+  const method = req.method || 'GET';
+
+  res.setHeader('Content-Type', 'application/json');
+
+  if (url === '/health' && method === 'GET') {
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      status: 'ok',
+      server: 'agent-ops-hub',
+      version: '0.1.0',
+      tools: TOOLS.length,
+      prompts: PROMPTS.length,
+      port: HTTP_PORT
+    }));
+    return;
+  }
+
+  if (url === '/mcp' && method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString('utf8'); });
+    req.on('end', async () => {
+      let message;
+      try {
+        message = JSON.parse(body);
+      } catch (e) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        return;
+      }
+      try {
+        // Capture the MCP response by temporarily redirecting stdout
+        const chunks = [];
+        const origWrite = process.stdout.write.bind(process.stdout);
+        process.stdout.write = (chunk) => { chunks.push(chunk); return true; };
+        await handleMessage(message);
+        process.stdout.write = origWrite;
+        const output = chunks.join('').trim();
+        const parsed = output ? JSON.parse(output) : {};
+        res.writeHead(200);
+        res.end(JSON.stringify(parsed));
+      } catch (e) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404);
+  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/health', '/mcp'] }));
+});
+
+httpServer.listen(HTTP_PORT, '127.0.0.1', () => {
+  process.stderr.write(`[agent-ops-hub] HTTP listening on http://127.0.0.1:${HTTP_PORT}\n`);
+});
+
+httpServer.on('error', (e) => {
+  process.stderr.write(`[agent-ops-hub] HTTP error: ${e.message}\n`);
+});
 
 function sendError(id, code, message) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })}\n`);
