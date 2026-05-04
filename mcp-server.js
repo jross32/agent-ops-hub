@@ -851,6 +851,77 @@ const TOOLS = [
       required: ['repoPath'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'dispatch_specialist_task',
+    description: 'Build a fully-formed AI-to-AI prompt bundle for a specialist from the 40-role catalog. The returned systemPrompt + taskPrompt can be dropped directly into any LLM. Each specialist gets a persona, domain framing, behavioral directives, and output guidance tailored to their role.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        specialistId: { type: 'string', description: 'Specialist id from the catalog (e.g. "backend_architect", "security_engineer", "prompt_engineer")' },
+        taskTitle:    { type: 'string', description: 'Short title for the task this specialist is being asked to perform' },
+        taskContext:  { type: 'string', description: 'Full context, background, constraints, and any artifacts the specialist needs to do their job' },
+        outputFormat: { type: 'string', enum: ['json', 'markdown', 'code', 'analysis', 'plan'], description: 'Expected output format (default: markdown)' }
+      },
+      required: ['specialistId', 'taskTitle', 'taskContext'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'run_parallel_specialist_sprint',
+    description: 'Dispatch multiple specialist tasks at once, each producing a fully-formed AI-to-AI prompt bundle. Returns a sprint package with a unique sprintId — hand all bundles to your LLM runner in parallel for simultaneous specialist execution.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sprintName:     { type: 'string', description: 'Short name for this sprint (e.g. "design-review-pass", "security-audit-wave-1")' },
+        tasks:          { type: 'array', minItems: 1, maxItems: 40, items: { type: 'object', required: ['specialistId', 'taskTitle', 'taskContext'], properties: { specialistId: { type: 'string' }, taskTitle: { type: 'string' }, taskContext: { type: 'string' }, outputFormat: { type: 'string' } } }, description: 'Array of specialist task assignments' },
+        maxConcurrent:  { type: 'number', description: 'Max tasks to run in one parallel batch (default 8)' }
+      },
+      required: ['sprintName', 'tasks'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'evaluate_sprint_output',
+    description: 'Score specialist sprint outputs on a 4-axis quality rubric (specificity, actionability, coverage, clarity — 0-25 each = 0-100 total). Uses heuristic scoring: token count, structured section headers, domain keyword density. Returns per-task scores + overall sprint score + improvement recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sprintId:  { type: 'string', description: 'Sprint ID from run_parallel_specialist_sprint (used for logging context)' },
+        outputs:   { type: 'array', minItems: 1, items: { type: 'object', required: ['specialistId', 'taskTitle', 'output'], properties: { specialistId: { type: 'string' }, taskTitle: { type: 'string' }, output: { type: 'string' }, domain: { type: 'string' } } }, description: 'Array of specialist outputs to score' },
+        rubric:    { type: 'object', description: 'Optional override for max points per axis: { specificity, actionability, coverage, clarity }' }
+      },
+      required: ['sprintId', 'outputs'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'synthesize_sprint_outputs',
+    description: 'Merge and deduplicate parallel specialist outputs into a coherent artifact. Groups by specialist domain, finds common themes, surfaces conflicts, and produces a single ordered action list. Output formats: report (narrative), plan (numbered steps), code_brief (technical spec).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        outputs:        { type: 'array', minItems: 1, items: { type: 'object', required: ['specialistId', 'taskTitle', 'output'], properties: { specialistId: { type: 'string' }, taskTitle: { type: 'string' }, output: { type: 'string' }, domain: { type: 'string' } } }, description: 'Array of specialist outputs to synthesize' },
+        synthesisGoal:  { type: 'string', description: 'What question or objective this synthesis should answer' },
+        format:         { type: 'string', enum: ['report', 'plan', 'code_brief'], description: 'Output format (default: plan)' }
+      },
+      required: ['outputs', 'synthesisGoal'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'specialist_work_log',
+    description: 'Persistent evidence log for specialist sprint runs. Write sprint results (prompt bundles + scores) to logs/specialist-runs/, read them back by sprintId, or list all recorded sprints. Provides a complete audit trail for evaluating org quality over time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action:   { type: 'string', enum: ['write', 'read', 'list'], description: 'Operation to perform' },
+        sprintId: { type: 'string', description: 'Sprint ID (required for write and read actions)' },
+        entry:    { type: 'object', description: 'Sprint data to persist (required for write action): { sprintName, taskCount, tasks[], scores?, timestamp? }' }
+      },
+      required: ['action'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1117,6 +1188,16 @@ async function runTool(name, args) {
       return compareServerCapabilities(args);
     case 'auto_remediate_drift':
       return autoRemediateDrift(args);
+    case 'dispatch_specialist_task':
+      return dispatchSpecialistTask(args);
+    case 'run_parallel_specialist_sprint':
+      return runParallelSpecialistSprint(args);
+    case 'evaluate_sprint_output':
+      return evaluateSprintOutput(args);
+    case 'synthesize_sprint_outputs':
+      return synthesizeSprintOutputs(args);
+    case 'specialist_work_log':
+      return specialistWorkLog(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3710,6 +3791,419 @@ function regressionRootCauseAnalysis(args) {
     failedTestNames: testNames.slice(0, 20),
     recommendation: topCause.hint
   };
+}
+
+// ─── AI Dev Org Execution Engine ──────────────────────────────────────────────
+
+const SPECIALIST_WORK_LOG_DIR = path.resolve(__dirname, 'logs', 'specialist-runs');
+
+function dispatchSpecialistTask(args) {
+  const specialistId = args.specialistId;
+  const taskTitle    = args.taskTitle;
+  const taskContext  = args.taskContext;
+  const outputFormat = args.outputFormat || 'markdown';
+
+  const specialist = SPECIALIST_AGENT_CATALOG.find((s) => s.id === specialistId);
+  if (!specialist) {
+    const available = SPECIALIST_AGENT_CATALOG.map((s) => s.id).join(', ');
+    throw new Error(`Unknown specialistId: "${specialistId}". Available: ${available}`);
+  }
+
+  // Build domain-specific behavioral directives
+  const DOMAIN_DIRECTIVES = {
+    ux:          'Anchor every recommendation in user needs and interaction quality. Reference heuristics, patterns, and measurable usability outcomes.',
+    frontend:    'Focus on rendering performance, bundle efficiency, and maintainable component architecture. Be concrete about browser/device targets.',
+    backend:     'Prioritize correctness, reliability, and clean API boundaries. Call out any scalability or coupling risks explicitly.',
+    data:        'Validate data integrity assumptions first. Be explicit about schema, query cost, and migration safety.',
+    security:    'Apply threat modeling thinking. Classify risks by OWASP top 10 where applicable. Never leave a security concern vague.',
+    quality:     'Define acceptance criteria and failure modes before proposing solutions. Think about edge cases the happy-path misses.',
+    ai:          'Frame recommendations around prompt behavior, evaluation rigor, and AI-system composability. Distrust magic — require measurable criteria.',
+    platform:    'Consider operational burden, observability, and developer experience equally. Infrastructure changes must be reversible.',
+    docs:        'Write for the reader who is confused right now. Structure first, then detail. Every section needs a clear purpose.',
+    operations:  'Prioritize speed of recovery over perfection. Identify the fastest safe path to resolution.',
+    product:     'Ground decisions in user value and delivery reality. Push back on scope that inflates without proportionate value.',
+    performance: 'Lead with measurement, not assumptions. Identify the bottleneck with evidence before recommending any fix.',
+  };
+
+  // Output format guidance per type
+  const FORMAT_GUIDANCE = {
+    json:     'Return a single valid JSON object. Keys must be camelCase. No prose outside the JSON.',
+    markdown: 'Use ## headers, bullet lists, and code fences. Sections: Summary, Analysis, Recommendations, Next Steps.',
+    code:     'Provide working, production-ready code. Include: brief comment on purpose, the implementation, one usage example.',
+    analysis: 'Structure as: Problem Statement, Evidence, Root Cause, Impact Assessment, Recommended Mitigations.',
+    plan:     'Produce a numbered action plan. Each item: action verb + what + why + acceptance criterion.',
+  };
+
+  const domainDirective = DOMAIN_DIRECTIVES[specialist.domain] || 'Apply deep expertise and be specific.';
+  const strengthsStr    = specialist.strengths.join(', ');
+  const formatGuidance  = FORMAT_GUIDANCE[outputFormat] || FORMAT_GUIDANCE.markdown;
+
+  const systemPrompt = `You are the ${specialist.title} on a specialist AI development team.
+
+Your domain: ${specialist.domain}
+Your core strengths: ${strengthsStr}
+
+Behavioral directives:
+- ${domainDirective}
+- Be specific and actionable — vague recommendations have zero value.
+- Surface risks and trade-offs honestly; do not soften important concerns.
+- Draw on your full depth of knowledge as a ${specialist.title}.
+- Do not hedge unless genuine uncertainty exists — own your recommendations.
+- Scope your response to your domain expertise; do not stray into areas outside your strengths.`;
+
+  const taskPrompt = `## Task: ${taskTitle}
+
+### Context
+${taskContext}
+
+### Your Assignment
+As the ${specialist.title}, analyze the above context and produce a ${outputFormat} output that reflects your specialist expertise.
+
+${formatGuidance}
+
+Focus areas for this task (your strongest angles): ${strengthsStr}`;
+
+  const framingContext = `Specialist: ${specialist.title} (${specialist.id})
+Domain: ${specialist.domain}
+Strengths: ${strengthsStr}
+Output format: ${outputFormat}
+Task: ${taskTitle}`;
+
+  return {
+    specialistId,
+    role:           specialist.title,
+    domain:         specialist.domain,
+    strengths:      specialist.strengths,
+    taskTitle,
+    outputFormat,
+    systemPrompt,
+    taskPrompt,
+    framingContext,
+    outputGuidance: formatGuidance,
+    timestamp:      new Date().toISOString()
+  };
+}
+
+async function runParallelSpecialistSprint(args) {
+  const sprintName    = args.sprintName;
+  const tasks         = args.tasks || [];
+  const maxConcurrent = Number.isFinite(args.maxConcurrent) ? args.maxConcurrent : 8;
+
+  if (tasks.length === 0) throw new Error('tasks array must not be empty');
+
+  const sprintId = `sprint-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Chunk tasks into batches of maxConcurrent for display ordering
+  const batches = [];
+  for (let i = 0; i < tasks.length; i += maxConcurrent) {
+    batches.push(tasks.slice(i, i + maxConcurrent));
+  }
+
+  // Dispatch all tasks (sync per task, but Promise.all across a batch for async future-proofing)
+  const dispatchedTasks = [];
+  for (const batch of batches) {
+    const batchResults = await Promise.all(
+      batch.map(async (task) => {
+        try {
+          const bundle = dispatchSpecialistTask({
+            specialistId: task.specialistId,
+            taskTitle:    task.taskTitle,
+            taskContext:  task.taskContext,
+            outputFormat: task.outputFormat || 'markdown'
+          });
+          return { ...bundle, taskId: `${sprintId}-${dispatchedTasks.length + batch.indexOf(task)}`, status: 'dispatched' };
+        } catch (err) {
+          return {
+            specialistId: task.specialistId,
+            taskTitle:    task.taskTitle,
+            taskId:       `${sprintId}-err-${batch.indexOf(task)}`,
+            status:       'error',
+            error:        err.message
+          };
+        }
+      })
+    );
+    dispatchedTasks.push(...batchResults);
+  }
+
+  const dispatched = dispatchedTasks.filter((t) => t.status === 'dispatched').length;
+  const errors     = dispatchedTasks.filter((t) => t.status === 'error').length;
+
+  return {
+    sprintId,
+    sprintName,
+    timestamp:      new Date().toISOString(),
+    taskCount:      tasks.length,
+    dispatchedCount: dispatched,
+    errorCount:     errors,
+    maxConcurrent,
+    batchCount:     batches.length,
+    tasks:          dispatchedTasks
+  };
+}
+
+function evaluateSprintOutput(args) {
+  const sprintId = args.sprintId;
+  const outputs  = args.outputs || [];
+  const rubric   = args.rubric  || {};
+
+  const maxSpecificity    = Number.isFinite(rubric.specificity)    ? rubric.specificity    : 25;
+  const maxActionability  = Number.isFinite(rubric.actionability)  ? rubric.actionability  : 25;
+  const maxCoverage       = Number.isFinite(rubric.coverage)       ? rubric.coverage       : 25;
+  const maxClarity        = Number.isFinite(rubric.clarity)        ? rubric.clarity        : 25;
+  const maxTotal = maxSpecificity + maxActionability + maxCoverage + maxClarity;
+
+  // Domain-specific keywords for keyword density scoring
+  const DOMAIN_KEYWORDS = {
+    ux:          ['user', 'flow', 'interaction', 'journey', 'heuristic', 'usability', 'prototype', 'persona'],
+    frontend:    ['component', 'render', 'bundle', 'css', 'responsive', 'performance', 'dom', 'event'],
+    backend:     ['service', 'api', 'endpoint', 'database', 'queue', 'cache', 'latency', 'throughput'],
+    data:        ['schema', 'query', 'index', 'migration', 'pipeline', 'integrity', 'etl', 'aggregate'],
+    security:    ['vulnerability', 'authentication', 'authorization', 'injection', 'encryption', 'threat', 'owasp', 'token'],
+    quality:     ['test', 'coverage', 'assertion', 'edge', 'regression', 'mock', 'fixture', 'flaky'],
+    ai:          ['prompt', 'model', 'eval', 'token', 'embedding', 'inference', 'hallucination', 'context'],
+    platform:    ['deploy', 'ci', 'pipeline', 'container', 'monitor', 'alert', 'rollback', 'provisioning'],
+    docs:        ['readme', 'example', 'reference', 'guide', 'section', 'navigate', 'audience', 'clarity'],
+    operations:  ['incident', 'runbook', 'triage', 'escalate', 'mitigate', 'resolve', 'postmortem', 'sla'],
+    product:     ['feature', 'requirement', 'priority', 'milestone', 'stakeholder', 'value', 'roadmap', 'acceptance'],
+    performance: ['profiling', 'bottleneck', 'latency', 'throughput', 'benchmark', 'cpu', 'memory', 'optimization'],
+  };
+
+  const perTaskScores = outputs.map((item) => {
+    const text    = item.output || '';
+    const words   = text.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+
+    // Specificity: longer + more numeric mentions = more specific
+    const numberCount = (text.match(/\d+(?:\.\d+)?/g) || []).length;
+    const specificityRaw = Math.min(1, (wordCount / 300)) * 0.6 + Math.min(1, numberCount / 10) * 0.4;
+    const specificityScore = Math.round(specificityRaw * maxSpecificity);
+
+    // Actionability: action verbs, imperative sentences, bullet items
+    const actionVerbs = ['add', 'remove', 'update', 'fix', 'refactor', 'implement', 'ensure', 'create', 'replace', 'extract', 'migrate', 'test', 'deploy', 'validate', 'configure'];
+    const actionCount = actionVerbs.reduce((sum, v) => sum + (text.toLowerCase().split(v).length - 1), 0);
+    const bulletCount = (text.match(/^[\s]*[-*•]\s/gm) || []).length;
+    const actionabilityRaw = Math.min(1, actionCount / 15) * 0.5 + Math.min(1, bulletCount / 10) * 0.5;
+    const actionabilityScore = Math.round(actionabilityRaw * maxActionability);
+
+    // Coverage: section headers indicate breadth of coverage
+    const headerCount = (text.match(/^#{1,4}\s/gm) || []).length;
+    const paragraphCount = text.split(/\n\n+/).length;
+    const coverageRaw = Math.min(1, headerCount / 5) * 0.6 + Math.min(1, paragraphCount / 8) * 0.4;
+    const coverageScore = Math.round(coverageRaw * maxCoverage);
+
+    // Clarity: code fences, structured lists, not too long (wall-of-text penalty)
+    const codeFenceCount = (text.match(/```/g) || []).length / 2;
+    const wallOfTextPenalty = wordCount > 1500 ? 0.7 : 1.0;
+    const clarityRaw = (Math.min(1, (bulletCount + codeFenceCount) / 8) * 0.7 + 0.3) * wallOfTextPenalty;
+    const clarityScore = Math.round(clarityRaw * maxClarity);
+
+    // Domain keyword density bonus
+    const domain   = item.domain || 'backend';
+    const domainKw = DOMAIN_KEYWORDS[domain] || [];
+    const kwHits   = domainKw.reduce((sum, kw) => sum + (text.toLowerCase().includes(kw) ? 1 : 0), 0);
+    const kwBonus  = kwHits >= 3 ? 2 : kwHits >= 1 ? 1 : 0; // small bonus, max 2
+
+    const totalScore = Math.min(maxTotal, specificityScore + actionabilityScore + coverageScore + clarityScore + kwBonus);
+    const pct        = Math.round((totalScore / maxTotal) * 100);
+
+    let grade;
+    if (pct >= 85)      grade = 'A';
+    else if (pct >= 70) grade = 'B';
+    else if (pct >= 55) grade = 'C';
+    else if (pct >= 40) grade = 'D';
+    else                grade = 'F';
+
+    return {
+      specialistId:       item.specialistId,
+      taskTitle:          item.taskTitle,
+      wordCount,
+      scores: {
+        specificity:   specificityScore,
+        actionability: actionabilityScore,
+        coverage:      coverageScore,
+        clarity:       clarityScore,
+        domainBonus:   kwBonus,
+      },
+      totalScore,
+      maxPossible:    maxTotal,
+      percentScore:   pct,
+      grade,
+    };
+  });
+
+  const overallScore  = perTaskScores.length
+    ? Math.round(perTaskScores.reduce((s, t) => s + t.percentScore, 0) / perTaskScores.length)
+    : 0;
+
+  const failing       = perTaskScores.filter((t) => t.grade === 'F' || t.grade === 'D');
+  const recommendation = overallScore >= 85
+    ? 'Excellent sprint quality. Outputs are specific, actionable, and well-structured.'
+    : overallScore >= 70
+    ? 'Good sprint quality. Minor improvements possible — check low-scoring axes on D/F tasks.'
+    : overallScore >= 55
+    ? `Adequate but improvable. ${failing.length} task(s) underperforming — review context depth and output format guidance.`
+    : `Sprint quality needs attention (${overallScore}/100). Key issues: thin outputs, low actionability, or missing structure. Consider enriching taskContext or reviewing specialist assignments.`;
+
+  return {
+    sprintId,
+    evaluatedAt:    new Date().toISOString(),
+    taskCount:      outputs.length,
+    overallScore,
+    grade:          overallScore >= 85 ? 'A' : overallScore >= 70 ? 'B' : overallScore >= 55 ? 'C' : overallScore >= 40 ? 'D' : 'F',
+    recommendation,
+    rubric:         { maxSpecificity, maxActionability, maxCoverage, maxClarity, maxTotal },
+    perTaskScores
+  };
+}
+
+function synthesizeSprintOutputs(args) {
+  const outputs       = args.outputs || [];
+  const synthesisGoal = args.synthesisGoal || 'synthesize specialist findings';
+  const format        = args.format || 'plan';
+
+  if (outputs.length === 0) throw new Error('outputs array must not be empty');
+
+  // Group by domain
+  const domainMap = {};
+  for (const item of outputs) {
+    const specialist = SPECIALIST_AGENT_CATALOG.find((s) => s.id === item.specialistId);
+    const domain     = item.domain || specialist?.domain || 'general';
+    if (!domainMap[domain]) domainMap[domain] = [];
+    domainMap[domain].push({ ...item, domain });
+  }
+
+  // Extract action items (lines starting with action indicators)
+  const ACTION_PATTERNS = [/^[-*•]\s+(.+)/, /^\d+[.)]\s+(.+)/, /^(implement|add|fix|update|remove|refactor|ensure|create|replace|migrate|deploy|validate|test)\s+/i];
+  const allActions = [];
+  for (const item of outputs) {
+    const lines = (item.output || '').split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      for (const pat of ACTION_PATTERNS) {
+        if (pat.test(trimmed) && trimmed.length > 15 && trimmed.length < 200) {
+          allActions.push({ text: trimmed.replace(/^[-*•\d.)]+\s*/, ''), source: item.specialistId, domain: item.domain || 'general' });
+          break;
+        }
+      }
+    }
+  }
+
+  // Simple deduplication: group near-duplicate actions by first 40 chars
+  const seen     = new Set();
+  const deduped  = allActions.filter((a) => {
+    const key = a.text.toLowerCase().slice(0, 40);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Detect conflicts: same domain, contradictory keywords
+  const CONFLICT_PAIRS = [['add', 'remove'], ['increase', 'decrease'], ['enable', 'disable'], ['split', 'merge']];
+  const conflicts = [];
+  for (const [kA, kB] of CONFLICT_PAIRS) {
+    const matchA = deduped.filter((a) => a.text.toLowerCase().includes(kA));
+    const matchB = deduped.filter((a) => a.text.toLowerCase().includes(kB));
+    for (const a of matchA) {
+      for (const b of matchB) {
+        if (a.domain === b.domain && a.source !== b.source) {
+          conflicts.push({ action1: a.text, source1: a.source, action2: b.text, source2: b.source, domain: a.domain });
+        }
+      }
+    }
+  }
+
+  // Build domain groups for output
+  const domainGroups = Object.entries(domainMap).map(([domain, items]) => ({
+    domain,
+    specialistCount: items.length,
+    specialists:     items.map((i) => i.specialistId),
+    actionCount:     deduped.filter((a) => a.domain === domain).length,
+    topActions:      deduped.filter((a) => a.domain === domain).slice(0, 5).map((a) => a.text)
+  }));
+
+  // Build merged actions ordered by domain then alphabetically
+  const mergedActions = deduped.map((a, i) => ({ index: i + 1, ...a }));
+
+  // Build final summary
+  const domainList = Object.keys(domainMap).join(', ');
+  let finalSummary;
+  if (format === 'report') {
+    finalSummary = `## Synthesis: ${synthesisGoal}\n\nSpecialists contributing: ${outputs.length} across domains: ${domainList}.\n\nTotal action items identified: ${mergedActions.length}. Conflicts detected: ${conflicts.length}.\n\nKey domains: ${domainGroups.map((g) => `${g.domain} (${g.actionCount} actions)`).join(', ')}.`;
+  } else if (format === 'code_brief') {
+    finalSummary = `// Synthesis: ${synthesisGoal}\n// Domains: ${domainList}\n// Actions: ${mergedActions.length} | Conflicts: ${conflicts.length}\n// Top actions:\n${mergedActions.slice(0, 10).map((a, i) => `// ${i + 1}. [${a.domain}] ${a.text}`).join('\n')}`;
+  } else {
+    // plan (default)
+    finalSummary = `Goal: ${synthesisGoal}\n\nContributing specialists: ${outputs.length} (domains: ${domainList})\nAction items: ${mergedActions.length} | Conflicts: ${conflicts.length}\n\nTop 10 prioritized actions:\n${mergedActions.slice(0, 10).map((a) => `${a.index}. [${a.domain}] ${a.text}`).join('\n')}`;
+  }
+
+  return {
+    synthesisGoal,
+    format,
+    synthesizedAt:    new Date().toISOString(),
+    specialistCount:  outputs.length,
+    totalActions:     mergedActions.length,
+    conflictCount:    conflicts.length,
+    domainGroups,
+    mergedActions,
+    conflictsFound:   conflicts.slice(0, 10), // cap at 10
+    finalSummary
+  };
+}
+
+function specialistWorkLog(args) {
+  const action   = args.action;
+  const sprintId = args.sprintId;
+
+  if (!fs.existsSync(SPECIALIST_WORK_LOG_DIR)) {
+    fs.mkdirSync(SPECIALIST_WORK_LOG_DIR, { recursive: true });
+  }
+
+  if (action === 'write') {
+    if (!sprintId) throw new Error('sprintId required for write action');
+    if (!args.entry) throw new Error('entry required for write action');
+    const dateStr   = new Date().toISOString().slice(0, 10);
+    const dayDir    = path.join(SPECIALIST_WORK_LOG_DIR, dateStr);
+    if (!fs.existsSync(dayDir)) fs.mkdirSync(dayDir, { recursive: true });
+    const filePath  = path.join(dayDir, `${sprintId}.json`);
+    const entry     = { sprintId, writtenAt: new Date().toISOString(), ...args.entry };
+    fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf8');
+    return { action: 'write', sprintId, filePath, writtenAt: entry.writtenAt, ok: true };
+  }
+
+  if (action === 'read') {
+    if (!sprintId) throw new Error('sprintId required for read action');
+    // Search across all date directories
+    let found = null;
+    for (const dateDir of fs.readdirSync(SPECIALIST_WORK_LOG_DIR)) {
+      const candidate = path.join(SPECIALIST_WORK_LOG_DIR, dateDir, `${sprintId}.json`);
+      if (fs.existsSync(candidate)) {
+        found = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+        break;
+      }
+    }
+    if (!found) throw new Error(`Sprint log not found for sprintId: ${sprintId}`);
+    return { action: 'read', sprintId, entry: found };
+  }
+
+  if (action === 'list') {
+    const entries = [];
+    if (!fs.existsSync(SPECIALIST_WORK_LOG_DIR)) return { action: 'list', totalCount: 0, entries };
+    for (const dateDir of fs.readdirSync(SPECIALIST_WORK_LOG_DIR).sort().reverse()) {
+      const dayPath = path.join(SPECIALIST_WORK_LOG_DIR, dateDir);
+      if (!fs.statSync(dayPath).isDirectory()) continue;
+      for (const file of fs.readdirSync(dayPath)) {
+        if (!file.endsWith('.json')) continue;
+        try {
+          const raw  = JSON.parse(fs.readFileSync(path.join(dayPath, file), 'utf8'));
+          entries.push({ sprintId: raw.sprintId, sprintName: raw.sprintName, date: dateDir, writtenAt: raw.writtenAt, taskCount: raw.taskCount, overallScore: raw.overallScore });
+        } catch (_) { /* skip corrupt entries */ }
+      }
+    }
+    return { action: 'list', totalCount: entries.length, entries };
+  }
+
+  throw new Error(`Unknown action "${action}". Must be write, read, or list.`);
 }
 
 async function autoRemediateDrift(args) {
