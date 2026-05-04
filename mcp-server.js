@@ -784,6 +784,20 @@ const TOOLS = [
       required: ['filePath'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'estimate_refactor_risk',
+    description: 'Score a file or directory for refactoring risk based on size, complexity, and git churn frequency. Returns a 0–100 risk score with contributing factors and a recommendation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath:   { type: 'string', description: 'Absolute path to the file (or directory) to score' },
+        repoPath:   { type: 'string', description: 'Git repo root to use for churn analysis (defaults to filePath parent)' },
+        churnLookback: { type: 'number', description: 'How many days of git history to scan for churn (default 90)' }
+      },
+      required: ['filePath'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1032,6 +1046,8 @@ async function runTool(name, args) {
       return regressionRootCauseAnalysis(args);
     case 'code_complexity_scan':
       return codeComplexityScan(args);
+    case 'estimate_refactor_risk':
+      return estimateRefactorRisk(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3627,7 +3643,103 @@ function regressionRootCauseAnalysis(args) {
   };
 }
 
-function codeComplexityScan(args) {
+async function estimateRefactorRisk(args) {
+  const filePath     = normalizeFsPath(args.filePath);
+  const churnDays    = Number.isFinite(args.churnLookback) ? args.churnLookback : 90;
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Path not found: ${filePath}`);
+  }
+
+  const stat = fs.statSync(filePath);
+  const isDir = stat.isDirectory();
+
+  // ── Size score (0–30) ──────────────────────────────────────────────────
+  let totalLines = 0;
+  let fileCount  = 0;
+  if (isDir) {
+    const jsFiles = fs.readdirSync(filePath).filter((f) => f.endsWith('.js'));
+    fileCount = jsFiles.length;
+    for (const f of jsFiles.slice(0, 20)) {
+      try {
+        const lines = fs.readFileSync(path.join(filePath, f), 'utf8').split('\n').length;
+        totalLines += lines;
+      } catch (_) { /* skip unreadable */ }
+    }
+  } else {
+    fileCount = 1;
+    try { totalLines = fs.readFileSync(filePath, 'utf8').split('\n').length; } catch (_) {}
+  }
+  const sizeScore = Math.min(30, Math.round((totalLines / 5000) * 30));
+
+  // ── Complexity score (0–35) — reuse codeComplexityScan if single JS file ──
+  let complexityScore = 0;
+  let complexityDetail = 'n/a (directory or non-JS file)';
+  if (!isDir && filePath.endsWith('.js')) {
+    try {
+      const cx = codeComplexityScan({ filePath });
+      const nestingPenalty  = Math.min(15, Math.max(0, (cx.maxNestingDepth - 3) * 3));
+      const longFnPenalty   = Math.min(20, cx.longFunctionCount * 4);
+      complexityScore  = nestingPenalty + longFnPenalty;
+      complexityDetail = `nesting=${cx.maxNestingDepth} longFns=${cx.longFunctionCount} avgLen=${cx.averageFunctionLines}`;
+    } catch (_) {}
+  }
+
+  // ── Churn score (0–35) — git log commit frequency ──────────────────────
+  let churnScore = 0;
+  let churnDetail = 'git unavailable';
+  let churnCommits = 0;
+  const repoPath = normalizeFsPath(args.repoPath || (isDir ? filePath : path.dirname(filePath)));
+  const since = new Date(Date.now() - churnDays * 86400000).toISOString().slice(0, 10);
+  const relPath = path.relative(repoPath, filePath).replace(/\\/g, '/');
+  try {
+    const gitCmd = `git -C "${repoPath}" log --oneline --since="${since}" -- "${relPath}"`;
+    const res = await runShellCommand(gitCmd, repoPath, 15000);
+    if (res.exitCode === 0) {
+      churnCommits = res.stdout.trim().split('\n').filter(Boolean).length;
+      churnScore   = Math.min(35, Math.round((churnCommits / 20) * 35));
+      churnDetail  = `${churnCommits} commits in last ${churnDays}d`;
+    }
+  } catch (_) {}
+
+  // ── Total risk score ───────────────────────────────────────────────────
+  const totalScore = sizeScore + complexityScore + churnScore;
+  const riskLevel = totalScore >= 70 ? 'critical'
+    : totalScore >= 50 ? 'high'
+    : totalScore >= 30 ? 'medium'
+    : 'low';
+
+  const recommendation = riskLevel === 'critical'
+    ? 'High-risk file — break into smaller modules before touching. Add tests first.'
+    : riskLevel === 'high'
+    ? 'Elevated risk — add unit tests and review carefully before making changes.'
+    : riskLevel === 'medium'
+    ? 'Moderate risk — test coverage recommended before refactoring.'
+    : 'Low risk — safe to refactor with standard care.';
+
+  return {
+    filePath,
+    isDirectory: isDir,
+    totalLines,
+    fileCount,
+    churnCommits,
+    riskScore: totalScore,
+    riskLevel,
+    scoreBreakdown: {
+      sizeScore,
+      complexityScore,
+      churnScore
+    },
+    details: {
+      size:       `${totalLines} lines across ${fileCount} file(s)`,
+      complexity: complexityDetail,
+      churn:      churnDetail
+    },
+    recommendation
+  };
+}
+
+function buildPromptText(name, args) {
   const filePath        = normalizeFsPath(args.filePath);
   const longThreshold   = Number.isFinite(args.longFunctionLines) ? args.longFunctionLines : 50;
   const nestingWarnAt   = Number.isFinite(args.maxNestingWarn) ? args.maxNestingWarn : 4;
