@@ -770,6 +770,20 @@ const TOOLS = [
       required: ['failureText'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'code_complexity_scan',
+    description: 'Scan a JavaScript file and return static complexity metrics: total line count, function count, max nesting depth, average function length, and a list of long functions that may need refactoring.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath:          { type: 'string', description: 'Absolute path to the JS file to analyze' },
+        longFunctionLines: { type: 'number', description: 'Functions with more lines than this are flagged as long (default 50)' },
+        maxNestingWarn:    { type: 'number', description: 'Nesting depth at which to emit a warning (default 4)' }
+      },
+      required: ['filePath'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1016,6 +1030,8 @@ async function runTool(name, args) {
       return generateChangelog(args);
     case 'regression_root_cause_analysis':
       return regressionRootCauseAnalysis(args);
+    case 'code_complexity_scan':
+      return codeComplexityScan(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3608,6 +3624,117 @@ function regressionRootCauseAnalysis(args) {
     stackTrace: stackLines,
     failedTestNames: testNames.slice(0, 20),
     recommendation: topCause.hint
+  };
+}
+
+function codeComplexityScan(args) {
+  const filePath        = normalizeFsPath(args.filePath);
+  const longThreshold   = Number.isFinite(args.longFunctionLines) ? args.longFunctionLines : 50;
+  const nestingWarnAt   = Number.isFinite(args.maxNestingWarn) ? args.maxNestingWarn : 4;
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+
+  const src   = fs.readFileSync(filePath, 'utf8');
+  const lines = src.split('\n');
+  const totalLines = lines.length;
+
+  // Detect function declarations / expressions / arrow functions
+  const FUNC_RE = /(?:^|[\s;{(,])(?:async\s+)?function\s+\w+|(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?(?:function|\([^)]*\)\s*=>|\w+\s*=>)|=>\s*\{|class\s+\w+/;
+  const functions = [];
+  let currentFuncStart = null;
+  let braceDepth = 0;
+  let inFunc = false;
+
+  // Simple line-by-line nesting depth tracker
+  let maxNesting = 0;
+  let currentNesting = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Count braces for nesting
+    for (const ch of line) {
+      if (ch === '{') {
+        currentNesting++;
+        if (currentNesting > maxNesting) maxNesting = currentNesting;
+      } else if (ch === '}') {
+        currentNesting = Math.max(0, currentNesting - 1);
+      }
+    }
+
+    // Detect function start
+    if (!inFunc && FUNC_RE.test(line)) {
+      inFunc = true;
+      currentFuncStart = i + 1; // 1-based
+      braceDepth = 0;
+      // count braces on this line
+      for (const ch of line) {
+        if (ch === '{') braceDepth++;
+        else if (ch === '}') braceDepth--;
+      }
+      // Extract function name
+      const nameMatch = line.match(/function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=/)
+        || line.match(/class\s+(\w+)/);
+      functions.push({
+        name: nameMatch ? (nameMatch[1] || nameMatch[2] || 'anonymous') : 'anonymous',
+        startLine: currentFuncStart,
+        endLine: null,
+        lineCount: null
+      });
+    } else if (inFunc) {
+      for (const ch of line) {
+        if (ch === '{') braceDepth++;
+        else if (ch === '}') braceDepth--;
+      }
+      if (braceDepth <= 0) {
+        const fn = functions[functions.length - 1];
+        fn.endLine  = i + 1;
+        fn.lineCount = fn.endLine - fn.startLine + 1;
+        inFunc = false;
+        braceDepth = 0;
+      }
+    }
+  }
+
+  // Close any unclosed function at end of file
+  if (inFunc && functions.length > 0) {
+    const fn = functions[functions.length - 1];
+    fn.endLine  = totalLines;
+    fn.lineCount = fn.endLine - fn.startLine + 1;
+  }
+
+  const completedFuncs = functions.filter((f) => f.lineCount !== null);
+  const longFunctions  = completedFuncs.filter((f) => f.lineCount > longThreshold)
+    .sort((a, b) => b.lineCount - a.lineCount)
+    .slice(0, 20);
+
+  const avgLength = completedFuncs.length > 0
+    ? Math.round(completedFuncs.reduce((s, f) => s + f.lineCount, 0) / completedFuncs.length)
+    : 0;
+
+  const nestingWarning = maxNesting >= nestingWarnAt
+    ? `Max nesting depth ${maxNesting} exceeds threshold ${nestingWarnAt} — consider refactoring deeply nested blocks`
+    : null;
+
+  return {
+    filePath,
+    totalLines,
+    functionCount: completedFuncs.length,
+    maxNestingDepth: maxNesting,
+    averageFunctionLines: avgLength,
+    longFunctionThreshold: longThreshold,
+    longFunctionCount: longFunctions.length,
+    longFunctions,
+    nestingWarning,
+    summary: [
+      `${totalLines} lines`,
+      `${completedFuncs.length} functions`,
+      `max nesting ${maxNesting}`,
+      `avg fn length ${avgLength}`,
+      longFunctions.length > 0 ? `${longFunctions.length} long functions` : 'no long functions'
+    ].join(' | ')
   };
 }
 
