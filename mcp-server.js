@@ -812,6 +812,18 @@ const TOOLS = [
       required: ['query'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'tool_dependency_graph',
+    description: 'Statically analyze an mcp-server.js file to map which tool handler cases call which internal implementation functions, and which functions call each other. Returns a dependency graph useful for understanding change impact before edits.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverPath: { type: 'string', description: 'Absolute path to the mcp-server.js file to analyze (defaults to this server)' },
+        toolName:   { type: 'string', description: 'If given, return only the graph for this specific tool (partial match)' }
+      },
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1072,6 +1084,8 @@ async function runTool(name, args) {
       return estimateRefactorRisk(args);
     case 'semantic_tool_search':
       return semanticToolSearch(args);
+    case 'tool_dependency_graph':
+      return toolDependencyGraph(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3664,6 +3678,95 @@ function regressionRootCauseAnalysis(args) {
     stackTrace: stackLines,
     failedTestNames: testNames.slice(0, 20),
     recommendation: topCause.hint
+  };
+}
+
+function toolDependencyGraph(args) {
+  const targetPath = args.serverPath ? normalizeFsPath(args.serverPath) : __filename;
+  const filterTool = args.toolName ? args.toolName.toLowerCase() : null;
+
+  let src;
+  try {
+    src = fs.readFileSync(targetPath, 'utf8');
+  } catch (err) {
+    throw new Error(`Cannot read serverPath: ${err.message}`);
+  }
+
+  const lines = src.split('\n');
+
+  // Step 1: Extract all function names defined in the file
+  const functionNames = new Set();
+  const funcDefRe = /^(?:async\s+)?function\s+(\w+)\s*\(/;
+  const arrowFuncRe = /^(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|\w+)\s*=>/;
+  for (const line of lines) {
+    const m = line.match(funcDefRe) || line.match(arrowFuncRe);
+    if (m) functionNames.add(m[1]);
+  }
+
+  // Step 2: Extract case blocks — tool name -> handler function call
+  // Pattern: case 'tool_name': return someFunction(args);
+  const caseRe = /case\s+'([^']+)':\s*(?:return\s+)?(\w+)\(/;
+  const toolHandlers = {};
+  for (const line of lines) {
+    const m = line.match(caseRe);
+    if (m) {
+      toolHandlers[m[1]] = m[2];
+    }
+  }
+
+  // Step 3: For each implementation function, find which other functions it calls
+  const callGraph = {};
+  // Build a map: functionName -> source lines
+  const funcRanges = {};
+  let currentFunc = null;
+  let depth = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const m = line.match(funcDefRe) || line.match(arrowFuncRe);
+    if (m && (line.includes('{') || lines[i + 1]?.includes('{'))) {
+      if (currentFunc && depth === 0) {
+        funcRanges[currentFunc].end = i - 1;
+      }
+      currentFunc = m[1];
+      funcRanges[currentFunc] = { start: i, end: lines.length - 1, lines: [] };
+      depth = 0;
+    }
+    if (currentFunc && funcRanges[currentFunc]) {
+      funcRanges[currentFunc].lines.push(line);
+    }
+  }
+
+  for (const [funcName, range] of Object.entries(funcRanges)) {
+    const called = new Set();
+    const callRe = /\b(\w+)\s*\(/g;
+    for (const line of range.lines) {
+      let m;
+      while ((m = callRe.exec(line)) !== null) {
+        if (m[1] !== funcName && functionNames.has(m[1])) {
+          called.add(m[1]);
+        }
+      }
+    }
+    callGraph[funcName] = [...called];
+  }
+
+  // Step 4: Build tool dependency entries
+  const allEntries = Object.entries(toolHandlers).map(([tool, handler]) => ({
+    tool,
+    handler,
+    handlerCallsTo: callGraph[handler] || []
+  }));
+
+  const filtered = filterTool
+    ? allEntries.filter((e) => e.tool.toLowerCase().includes(filterTool))
+    : allEntries;
+
+  return {
+    serverPath: targetPath,
+    totalFunctions: functionNames.size,
+    totalTools: Object.keys(toolHandlers).length,
+    filteredCount: filtered.length,
+    graph: filtered
   };
 }
 
