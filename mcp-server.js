@@ -596,6 +596,41 @@ const TOOLS = [
     }
   },
   {
+    name: 'discover_mcp_docs_index',
+    description: 'Fetch MCP docs index (llms.txt style) and extract canonical documentation URLs for grounded research pulses',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        indexUrl: { type: 'string', description: 'URL of docs index text file (default MCP llms.txt)' },
+        timeoutMs: { type: 'number', minimum: 1000, maximum: 90000 },
+        maxBytes: { type: 'number', minimum: 4096, maximum: 500000 },
+        maxUrls: { type: 'number', minimum: 1, maximum: 500, description: 'Maximum urls to return (default 200)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'draft_skill_pack_manifest',
+    description: 'Generate a reusable agent skill-pack manifest mapping specialist roles to skill files and operating contracts',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', description: 'Primary objective for the skill pack' },
+        includeRoles: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: 80,
+          description: 'Optional specialist role IDs to include'
+        },
+        basePath: { type: 'string', description: 'Suggested skill root path (default .github/skills)' },
+        maxSkills: { type: 'number', minimum: 1, maximum: 80, description: 'Maximum skills to include (default 20)' }
+      },
+      required: ['goal'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'validate_json_schema',
     description: 'Validate a JSON object against a JSON Schema definition and return a structured pass/fail report with detailed errors',
     inputSchema: {
@@ -646,6 +681,13 @@ const PROMPTS = [
     description: 'Practical blueprint for using built-in media tools to generate images and analyze image/video assets in coding workflows',
     arguments: [
       { name: 'goal', description: 'Media workflow goal (UI mocks, QA evidence, video inspection)', required: false }
+    ]
+  },
+  {
+    name: 'skill_pack_operating_model',
+    description: 'How to operationalize specialist roles as skill packs for repeatable, rigorous auto-coding behavior',
+    arguments: [
+      { name: 'goal', description: 'What your skill-pack system should optimize for', required: false }
     ]
   },
   {
@@ -702,7 +744,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.5.0'
+        version: '0.6.0'
       },
       capabilities: {
         tools: {},
@@ -815,6 +857,10 @@ async function runTool(name, args) {
       return analyzeImageFile(args);
     case 'analyze_video_file':
       return analyzeVideoFile(args);
+    case 'discover_mcp_docs_index':
+      return discoverMcpDocsIndex(args);
+    case 'draft_skill_pack_manifest':
+      return draftSkillPackManifest(args);
     case 'validate_json_schema':
       return validateJsonSchema(args);
     default:
@@ -1519,7 +1565,7 @@ function sendResult(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
 
-// ── New tool implementations (v0.5.0) ────────────────────────────────────
+// ── New tool implementations (v0.6.0) ────────────────────────────────────
 
 function scanToolCoverage(args) {
   const serverDir = normalizeFsPath(args.serverDir);
@@ -2425,6 +2471,94 @@ async function analyzeVideoFile(args) {
   };
 }
 
+async function discoverMcpDocsIndex(args) {
+  const indexUrl = String(args.indexUrl || 'https://modelcontextprotocol.io/llms.txt').trim();
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 15000;
+  const maxBytes = Number.isFinite(args.maxBytes) ? args.maxBytes : 200000;
+  const maxUrls = Number.isFinite(args.maxUrls) ? Math.floor(args.maxUrls) : 200;
+
+  const resp = await fetchUrl(indexUrl, timeoutMs, maxBytes);
+  const body = String(resp.body || '');
+  const lines = body.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  const urlSet = new Set();
+  const urlRegex = /(https?:\/\/[^\s)]+)(?:\)|\s|$)/gi;
+  for (const line of lines) {
+    let m;
+    while ((m = urlRegex.exec(line)) !== null) {
+      const url = m[1].replace(/[>,.;]+$/, '');
+      urlSet.add(url);
+      if (urlSet.size >= maxUrls) break;
+    }
+    if (urlSet.size >= maxUrls) break;
+  }
+
+  const urls = [...urlSet];
+  const groups = {
+    gettingStarted: urls.filter((u) => /getting-started|intro/i.test(u)),
+    architecture: urls.filter((u) => /architecture|learn/i.test(u)),
+    specification: urls.filter((u) => /spec|protocol/i.test(u)),
+    examples: urls.filter((u) => /example|tutorial/i.test(u)),
+    other: urls.filter((u) => !/getting-started|intro|architecture|learn|spec|protocol|example|tutorial/i.test(u))
+  };
+
+  return {
+    indexUrl,
+    statusCode: resp.statusCode,
+    discoveredUrlCount: urls.length,
+    groups,
+    urls
+  };
+}
+
+function draftSkillPackManifest(args) {
+  const goal = String(args.goal || '').trim();
+  if (!goal) throw new Error('goal is required');
+
+  const includeRoles = Array.isArray(args.includeRoles)
+    ? args.includeRoles.map((r) => String(r || '').trim()).filter(Boolean)
+    : [];
+  const basePath = String(args.basePath || '.github/skills').trim();
+  const maxSkills = Number.isFinite(args.maxSkills) ? Math.floor(args.maxSkills) : 20;
+
+  const selected = includeRoles.length
+    ? SPECIALIST_AGENT_CATALOG.filter((r) => includeRoles.includes(r.id))
+    : SPECIALIST_AGENT_CATALOG.slice();
+
+  const roles = selected.slice(0, maxSkills);
+  const skills = roles.map((role) => ({
+    roleId: role.id,
+    roleTitle: role.title,
+    domain: role.domain,
+    skillPath: `${basePath}/${role.id}`,
+    files: [
+      `${basePath}/${role.id}/SKILL.md`,
+      `${basePath}/${role.id}/prompts/${role.id}.prompt.md`
+    ],
+    contract: {
+      inputs: ['task', 'constraints', 'context'],
+      outputs: ['plan', 'changes', 'validation'],
+      qualityGate: 'must include verification evidence before complete'
+    },
+    strengths: role.strengths
+  }));
+
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    goal,
+    basePath,
+    skillCount: skills.length,
+    skills,
+    operatingRules: [
+      'Every skill execution must produce a validation summary.',
+      'Cross-domain changes require at least one reviewer skill from quality or security domain.',
+      'Long-running autonomous loops must checkpoint progress artifacts each cycle.'
+    ]
+  };
+
+  return manifest;
+}
+
 function inferWorkstreamsFromGoal(goal) {
   const lower = String(goal || '').toLowerCase();
   const streams = [];
@@ -2821,6 +2955,30 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
   This gives you native media generation + analysis in your MCP stack so future app projects can automate visual artifacts and media QA.`;
   }
 
+    if (name === 'skill_pack_operating_model') {
+     const goal = args.goal || 'rigorous specialist auto-coding at scale';
+     return `Skill-pack operating model for: ${goal}
+
+  1. Create structured specialist skills:
+    - Run \`draft_skill_pack_manifest\` to map roles to skill folders and contracts.
+    - Keep skills in .github/skills (project) or ~/.copilot/skills (personal reusable).
+
+  2. Ground research with canonical docs index:
+    - Run \`discover_mcp_docs_index\` against MCP llms.txt before major architecture changes.
+
+  3. Enforce rigor with contracts:
+    - Each skill must define inputs, outputs, and quality gates.
+    - Every autonomous cycle must include validation evidence.
+
+  4. Orchestrate with specialist pods:
+    - Use specialist assignment + collaboration schedule tools to run skills in parallel waves.
+
+  5. Continuous loop:
+    - Run recurring research pulses, update skill packs, and revalidate behavior after each wave.
+
+  This model turns specialist roles into reusable, testable skill packs so autonomous coding stays creative but controlled.`;
+    }
+
   return `Unknown prompt: ${name}`;
 }
 
@@ -2837,7 +2995,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.5.0',
+      version: '0.6.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT

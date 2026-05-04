@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-04T03:43:22.018Z",
-  "runStamp": "2026-05-03_234314",
+  "timestamp": "2026-05-04T03:45:27.769Z",
+  "runStamp": "2026-05-03_234519",
   "testFile": "group-m-media-tools/test.js",
   "id": "group-m-media-tools",
   "status": "pass",
-  "durationMs": 110,
+  "durationMs": 82,
   "notes": "media: svg generated + analyzed, video mode=fallback",
   "details": {
     "svgPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\media-tests\\agent-ops-card.svg",

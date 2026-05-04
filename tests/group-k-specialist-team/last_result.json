@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-04T03:43:21.139Z",
-  "runStamp": "2026-05-03_234314",
+  "timestamp": "2026-05-04T03:45:26.099Z",
+  "runStamp": "2026-05-03_234519",
   "testFile": "group-k-specialist-team/test.js",
   "id": "group-k-specialist-team",
   "status": "pass",
-  "durationMs": 14,
+  "durationMs": 6,
   "notes": "specialist roster=40, pods=4, waves=2",
   "details": {
     "roster": 40,

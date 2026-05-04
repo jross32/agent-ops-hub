@@ -1,6 +1,6 @@
 # agent-ops-hub — AI Tool Reference (DOCS.md)
 
-Version: **0.5.0** | Port: **11200** (HTTP) + stdio | Tools: **33** | Prompts: **6**
+Version: **0.6.0** | Port: **11200** (HTTP) + stdio | Tools: **35** | Prompts: **7**
 
 > **For AI agents:** This is your primary orchestration server. Start here to plan tasks, validate work, compare server capabilities, track roadmaps, and analyze test artifacts. Use the prompts to get structured guidance before starting complex workflows.
 
@@ -23,12 +23,14 @@ Version: **0.5.0** | Port: **11200** (HTTP) + stdio | Tools: **33** | Prompts: *
 | Generate visual image assets | `generate_svg_image` |
 | Analyze image metadata and dimensions | `analyze_image_file` |
 | Analyze video metadata with ffprobe fallback | `analyze_video_file` |
+| Discover canonical MCP docs URLs | `discover_mcp_docs_index` |
+| Build reusable specialist skill manifests | `draft_skill_pack_manifest` |
 | Check JS file syntax quality | `code_quality_gate` |
 | Get workflow guidance (prompt) | Prompt: `agent_ops_workflow` |
 
 ---
 
-## All 33 Tools
+## All 35 Tools
 
 ### Orchestration & Intelligence
 
@@ -265,6 +267,20 @@ Analyze video metadata; uses ffprobe when available and returns fallback metadat
 ```
 Returns: `{ analysisMode, ffprobeAvailable, durationSec?, video?, audioTrackCount?, sizeBytes }`
 
+#### `discover_mcp_docs_index`
+Fetch MCP docs index (`llms.txt`) and extract canonical documentation URLs for grounded research.
+```json
+{ "indexUrl": "https://modelcontextprotocol.io/llms.txt", "maxUrls": 200 }
+```
+Returns: `{ discoveredUrlCount, groups, urls }`
+
+#### `draft_skill_pack_manifest`
+Generate a specialist skill-pack manifest with role-to-skill mappings and operating contracts.
+```json
+{ "goal": "autonomous app delivery", "basePath": ".github/skills", "maxSkills": 20 }
+```
+Returns: `{ skillCount, skills: [...], operatingRules: [...] }`
+
 ---
 
 ### Release & Changelog
@@ -285,7 +301,7 @@ Returns: `{ version, date, commitCount, outputPath, notes }`
 
 ---
 
-## 6 Prompts
+## 7 Prompts
 
 ### `agent_ops_workflow`
 Get step-by-step guidance for using agent-ops-hub to orchestrate a complex goal.
@@ -317,6 +333,12 @@ Get a practical media workflow blueprint for image generation and image/video an
 Arguments: goal (optional)
 ```
 
+### `skill_pack_operating_model`
+Get an operating model for specialist skill packs with rigorous quality contracts and grounded doc discovery.
+```
+Arguments: goal (optional)
+```
+
 ### `release_prep_checklist`
 Full 10-step release preparation checklist: tests, changelog, version bump, tag, push.
 ```
@@ -340,6 +362,6 @@ POST http://127.0.0.1:11200/mcp     → same as stdio JSON-RPC; body: { jsonrpc,
 cd agent-ops-hub
 npm install
 node mcp-server.js        # stdio mode
-node tests/run-all.js     # run all 13 test groups
+node tests/run-all.js     # run all 14 test groups
 node --check mcp-server.js # syntax check
 ```
