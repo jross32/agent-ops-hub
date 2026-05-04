@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-04T23:03:46.598Z",
+  "timestamp": "2026-05-04T23:17:02.892Z",
   "model": "Claude Sonnet 4.6",
   "version": "1.0",
   "overall": 80,
@@ -75,25 +75,25 @@
             "path": "/health",
             "ok": true,
             "statusCode": 200,
-            "ms": 26
+            "ms": 24
           },
           {
             "path": "/api/test-results",
             "ok": true,
             "statusCode": 200,
-            "ms": 7
+            "ms": 6
           },
           {
             "path": "/events/recent",
             "ok": true,
             "statusCode": 200,
-            "ms": 12
+            "ms": 7
           },
           {
             "path": "/",
             "ok": true,
             "statusCode": 200,
-            "ms": 8
+            "ms": 3
           }
         ],
         "passed": 4,
@@ -104,20 +104,20 @@
       "score": 100,
       "details": {
         "score": 100,
-        "avgMs": 16,
-        "maxMs": 28,
+        "avgMs": 12,
+        "maxMs": 25,
         "trials": [
           {
             "tool": "export_tool_catalog",
-            "ms": 28
+            "ms": 25
           },
           {
             "tool": "get_memory",
-            "ms": 13
+            "ms": 7
           },
           {
             "tool": "get_tool_metrics",
-            "ms": 8
+            "ms": 5
           }
         ]
       }
