@@ -946,6 +946,57 @@ const TOOLS = [
       required: ['action'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'get_sprint_quality_trend',
+    description: 'Analyze all logged specialist sprint runs to produce a quality trend report. Computes per-specialist average scores, score deltas over time, rubric axes that consistently underperform, and recommended prompt adjustments. Use this to guide decisions about which specialists or rubric areas need improvement.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        lookbackDays: { type: 'number', description: 'How many days of history to include (default: 30, max: 365)' },
+        specialistId: { type: 'string', description: 'Filter to a single specialist ID (optional — omit for all specialists)' },
+        minSprints:   { type: 'number', description: 'Minimum number of sprints a specialist must appear in to be included (default: 1)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'get_memory',
+    description: 'Read a value from the persistent session memory store (artifacts/memory/session-state.json). Returns the stored value for a key, or null if the key does not exist. Use this at the start of a session to recover roadmap position, active sprint IDs, quality scores, and other stateful context.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'The key to retrieve. Use dot-notation for nested keys (e.g. "roadmap.currentItem")' }
+      },
+      required: ['key'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'set_memory',
+    description: 'Write or overwrite a value in the persistent session memory store (artifacts/memory/session-state.json). Use this to checkpoint roadmap progress, record sprint IDs, note quality scores, and persist any context that should survive server restarts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key:   { type: 'string', description: 'The key to write. Use dot-notation for nested keys (e.g. "roadmap.currentItem")' },
+        value: { description: 'The value to store (any JSON-serializable type: string, number, boolean, array, object)' }
+      },
+      required: ['key', 'value'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'append_memory',
+    description: 'Append an item to an array value in the persistent session memory store. If the key does not exist, creates a new array with the item. If the key exists but is not an array, throws an error. Use for growing lists like sprint history, completed roadmap items, or research pulses.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        key:  { type: 'string', description: 'The key of the array to append to. Use dot-notation for nested keys.' },
+        item: { description: 'The item to append (any JSON-serializable type)' }
+      },
+      required: ['key', 'item'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1316,6 +1367,14 @@ async function runTool(name, args) {
       return synthesizeSprintOutputs(args);
     case 'specialist_work_log':
       return specialistWorkLog(args);
+    case 'get_sprint_quality_trend':
+      return getSprintQualityTrend(args);
+    case 'get_memory':
+      return getMemory(args);
+    case 'set_memory':
+      return setMemory(args);
+    case 'append_memory':
+      return appendMemory(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -4354,6 +4413,187 @@ function specialistWorkLog(args) {
   throw new Error(`Unknown action "${action}". Must be write, read, or list.`);
 }
 
+// ─── Sprint Quality Trend ──────────────────────────────────────────────────────
+
+function getSprintQualityTrend(args) {
+  const lookbackDays = Math.min(Number.isFinite(args.lookbackDays) ? args.lookbackDays : 30, 365);
+  const filterSpecialist = args.specialistId || null;
+  const minSprints = Number.isFinite(args.minSprints) ? args.minSprints : 1;
+
+  if (!fs.existsSync(SPECIALIST_WORK_LOG_DIR)) {
+    return { totalSprints: 0, specialists: [], rubricTrend: {}, recommendations: [], lookbackDays };
+  }
+
+  const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
+  const allEntries = [];
+
+  for (const dateDir of fs.readdirSync(SPECIALIST_WORK_LOG_DIR).sort()) {
+    const dayPath = path.join(SPECIALIST_WORK_LOG_DIR, dateDir);
+    if (!fs.statSync(dayPath).isDirectory()) continue;
+    for (const file of fs.readdirSync(dayPath)) {
+      if (!file.endsWith('.json')) continue;
+      try {
+        const raw = JSON.parse(fs.readFileSync(path.join(dayPath, file), 'utf8'));
+        const ts = raw.writtenAt ? new Date(raw.writtenAt).getTime() : 0;
+        if (ts < cutoff) continue;
+        allEntries.push(raw);
+      } catch (_) { /* skip corrupt */ }
+    }
+  }
+
+  // Per-specialist aggregation
+  const specialistMap = {};
+  const rubricAxes = ['specificity', 'actionability', 'coverage', 'clarity', 'domainBonus'];
+  const rubricTotals = {};
+
+  for (const entry of allEntries) {
+    const perTask = entry.perTaskScores || [];
+    for (const task of perTask) {
+      const sid = task.specialistId;
+      if (filterSpecialist && sid !== filterSpecialist) continue;
+      if (!specialistMap[sid]) specialistMap[sid] = { specialistId: sid, scores: [], sprintIds: [], axisAvgs: {} };
+      specialistMap[sid].scores.push(task.percentScore || task.totalScore || 0);
+      if (!specialistMap[sid].sprintIds.includes(entry.sprintId)) specialistMap[sid].sprintIds.push(entry.sprintId);
+      if (task.scores) {
+        for (const ax of rubricAxes) {
+          if (task.scores[ax] !== undefined) {
+            if (!specialistMap[sid].axisAvgs[ax]) specialistMap[sid].axisAvgs[ax] = [];
+            specialistMap[sid].axisAvgs[ax].push(task.scores[ax]);
+            if (!rubricTotals[ax]) rubricTotals[ax] = [];
+            rubricTotals[ax].push(task.scores[ax]);
+          }
+        }
+      }
+    }
+  }
+
+  // Build specialist summaries
+  const specialists = Object.values(specialistMap)
+    .filter((s) => s.sprintIds.length >= minSprints)
+    .map((s) => {
+      const avg = s.scores.reduce((a, b) => a + b, 0) / s.scores.length;
+      const sorted = [...s.scores];
+      const delta = sorted.length >= 2 ? sorted[sorted.length - 1] - sorted[0] : 0;
+      const axisAvgs = {};
+      for (const [ax, vals] of Object.entries(s.axisAvgs)) {
+        axisAvgs[ax] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10;
+      }
+      const weakAxes = Object.entries(axisAvgs)
+        .filter(([, v]) => v < 15)
+        .sort((a, b) => a[1] - b[1])
+        .map(([k]) => k);
+      return {
+        specialistId: s.specialistId,
+        sprintCount: s.sprintIds.length,
+        avgScore: Math.round(avg * 10) / 10,
+        scoreDelta: Math.round(delta * 10) / 10,
+        trend: delta > 3 ? 'improving' : delta < -3 ? 'declining' : 'stable',
+        axisAvgs,
+        weakAxes,
+        grade: avg >= 90 ? 'A' : avg >= 80 ? 'B' : avg >= 70 ? 'C' : avg >= 60 ? 'D' : 'F'
+      };
+    })
+    .sort((a, b) => b.avgScore - a.avgScore);
+
+  // Global rubric axis averages
+  const rubricTrend = {};
+  for (const [ax, vals] of Object.entries(rubricTotals)) {
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    rubricTrend[ax] = { avg: Math.round(avg * 10) / 10, samples: vals.length, weak: avg < 15 };
+  }
+
+  // Recommendations
+  const recommendations = [];
+  const weakGlobal = Object.entries(rubricTrend).filter(([, v]) => v.weak).map(([k]) => k);
+  if (weakGlobal.length) {
+    recommendations.push(`Global rubric weakness in: ${weakGlobal.join(', ')} — add more specific context and examples to task prompts.`);
+  }
+  const declining = specialists.filter((s) => s.trend === 'declining');
+  for (const s of declining.slice(0, 3)) {
+    recommendations.push(`${s.specialistId} is declining (delta ${s.scoreDelta}) — review recent task context quality for this specialist.`);
+  }
+  const lowScorers = specialists.filter((s) => s.grade === 'D' || s.grade === 'F');
+  for (const s of lowScorers.slice(0, 3)) {
+    recommendations.push(`${s.specialistId} averaging ${s.avgScore}/100 (${s.grade}) — weak axes: ${s.weakAxes.join(', ') || 'none identified'}.`);
+  }
+  if (!recommendations.length) recommendations.push('All tracked specialists are performing well. No immediate prompt adjustments needed.');
+
+  return {
+    lookbackDays,
+    totalSprints: allEntries.length,
+    specialistCount: specialists.length,
+    specialists,
+    rubricTrend,
+    recommendations
+  };
+}
+
+// ─── Persistent Memory Store ───────────────────────────────────────────────────
+
+const MEMORY_STORE_PATH = path.resolve(__dirname, 'artifacts', 'memory', 'session-state.json');
+
+function _readMemoryStore() {
+  if (!fs.existsSync(MEMORY_STORE_PATH)) return {};
+  try { return JSON.parse(fs.readFileSync(MEMORY_STORE_PATH, 'utf8')); }
+  catch (_) { return {}; }
+}
+
+function _writeMemoryStore(store) {
+  const dir = path.dirname(MEMORY_STORE_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(MEMORY_STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
+}
+
+function _getNestedKey(obj, dotKey) {
+  const parts = dotKey.split('.');
+  let cur = obj;
+  for (const p of parts) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+
+function _setNestedKey(obj, dotKey, value) {
+  const parts = dotKey.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (cur[p] == null || typeof cur[p] !== 'object') cur[p] = {};
+    cur = cur[p];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function getMemory(args) {
+  const key = args.key;
+  const store = _readMemoryStore();
+  const value = _getNestedKey(store, key);
+  return { key, value: value !== undefined ? value : null, found: value !== undefined };
+}
+
+function setMemory(args) {
+  const key = args.key;
+  const store = _readMemoryStore();
+  _setNestedKey(store, key, args.value);
+  _writeMemoryStore(store);
+  return { key, value: args.value, ok: true, storedAt: new Date().toISOString() };
+}
+
+function appendMemory(args) {
+  const key = args.key;
+  const store = _readMemoryStore();
+  const existing = _getNestedKey(store, key);
+  if (existing !== undefined && !Array.isArray(existing)) {
+    throw new Error(`Key "${key}" exists but is not an array (got ${typeof existing}). Use set_memory to overwrite.`);
+  }
+  const arr = Array.isArray(existing) ? existing : [];
+  arr.push(args.item);
+  _setNestedKey(store, key, arr);
+  _writeMemoryStore(store);
+  return { key, appended: args.item, newLength: arr.length, ok: true };
+}
+
 async function autoRemediateDrift(args) {
   const repoPath = normalizeFsPath(args.repoPath);
   const dryRun   = args.dryRun !== false; // default true
@@ -5453,7 +5693,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.9.2',
+      version: '0.9.3',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT,
