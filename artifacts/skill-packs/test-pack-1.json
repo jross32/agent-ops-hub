@@ -1,0 +1,36 @@
+{
+  "id": "test-pack-1",
+  "name": "Test Skill Pack 1",
+  "version": "0.1.0",
+  "tools": [
+    {
+      "name": "sp_greet",
+      "description": "Returns a greeting",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "handlerCode": "return { greeting: \"Hello, \" + (args.name || \"world\") + \"!\" };"
+    },
+    {
+      "name": "sp_add",
+      "description": "Adds two numbers",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        }
+      },
+      "handlerCode": "return { result: (args.x || 0) + (args.y || 0) };"
+    }
+  ]
+}

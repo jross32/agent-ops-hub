@@ -1,0 +1,18 @@
+{
+  "id": "plan-b",
+  "name": "Revised",
+  "steps": [
+    {
+      "id": "s1",
+      "action": "lint"
+    },
+    {
+      "id": "s2",
+      "action": "test"
+    },
+    {
+      "id": "s3",
+      "action": "deploy"
+    }
+  ]
+}

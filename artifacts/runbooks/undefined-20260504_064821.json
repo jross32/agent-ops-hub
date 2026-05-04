@@ -1,0 +1,19 @@
+{
+  "id": "undefined-20260504_064821",
+  "objective": "test",
+  "createdAt": "2026-05-04T10:48:21.337Z",
+  "steps": [
+    {
+      "index": 1,
+      "mustPass": true
+    },
+    {
+      "index": 2,
+      "mustPass": true
+    }
+  ],
+  "policy": {
+    "stopOnFail": true,
+    "requiresValidation": true
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "url": "http://example.com",
+  "topic": "test topic",
+  "relevanceScore": 0,
+  "extractedAt": "2026-05-04T10:46:11.280Z",
+  "charCount": 142,
+  "isDuplicate": false,
+  "text": "Example Domain Example Domain This domain is for use in documentation examples without needing permission. Avoid use in operations. Learn more"
+}

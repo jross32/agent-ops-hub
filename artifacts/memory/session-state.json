@@ -2,7 +2,22 @@
   "roadmap": {
     "currentItem": 3,
     "completedItems": [
-      "quality-trend"
-    ]
+      "quality-trend",
+      "adversarial-review",
+      "auto-implement",
+      "adversarial-review",
+      "auto-implement",
+      "adversarial-review",
+      "auto-implement",
+      "adversarial-review",
+      "auto-implement"
+    ],
+    "version": "1.0.0"
+  },
+  "test": {
+    "nested": {
+      "deep": 42
+    },
+    "k": "hello"
   }
 }

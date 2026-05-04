@@ -1,0 +1,14 @@
+[
+  {
+    "name": "probe_tool_1",
+    "description": "test",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": true
+    },
+    "handlerCode": "return {ok:true};",
+    "packId": null,
+    "registeredAt": "2026-05-04T10:47:27.747Z"
+  }
+]

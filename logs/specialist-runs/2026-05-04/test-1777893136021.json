@@ -1,0 +1,17 @@
+{
+  "sprintId": "test-1777893136021",
+  "writtenAt": "2026-05-04T11:12:16.030Z",
+  "sprintName": "test-run",
+  "taskCount": 3,
+  "overallScore": 85,
+  "grade": "B",
+  "perTaskScores": [
+    {
+      "specialistId": "backend_architect",
+      "taskTitle": "Tool design",
+      "wordCount": 300,
+      "totalScore": 79,
+      "grade": "C"
+    }
+  ]
+}

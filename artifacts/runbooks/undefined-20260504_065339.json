@@ -1,0 +1,23 @@
+{
+  "id": "undefined-20260504_065339",
+  "objective": "Implement adversarial review gate",
+  "createdAt": "2026-05-04T10:53:39.181Z",
+  "steps": [
+    {
+      "index": 1,
+      "mustPass": true
+    },
+    {
+      "index": 2,
+      "mustPass": true
+    },
+    {
+      "index": 3,
+      "mustPass": true
+    }
+  ],
+  "policy": {
+    "stopOnFail": true,
+    "requiresValidation": true
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "agent-ops-hub",
-  "version": "0.9.3",
+  "version": "1.0.0",
   "description": "MCP server for advanced agent workflow ops: research, validation gates, capability discovery, and runbooks",
   "main": "mcp-server.js",
   "scripts": {

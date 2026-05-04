@@ -1,0 +1,4 @@
+Step 1: lint
+Step 2: run tests
+Step 3: commit
+Step 4: push

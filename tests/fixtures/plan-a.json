@@ -1,0 +1,14 @@
+{
+  "id": "plan-a",
+  "name": "Baseline",
+  "steps": [
+    {
+      "id": "s1",
+      "action": "lint"
+    },
+    {
+      "id": "s2",
+      "action": "test"
+    }
+  ]
+}

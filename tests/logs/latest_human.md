@@ -1,46 +1,82 @@
-# Agent Ops Hub Test Run
-- Timestamp: 2026-05-04T07:52:18.203Z
-- Node: v24.14.0
-- Platform: win32 10.0.22631
+# agent-ops-hub v1.0.0 Full Tool Test Report
+**Date:** 2026-05-04T11:12:19.417Z
 
 ## Summary
-- Total: 17
-- Passed: 17
-- Failed: 0
-- Skipped: 0
-- Duration (ms): 13343
+| Metric | Value |
+|--------|-------|
+| Total Tests | 69 |
+| ✅ Passed | 69 |
+| ❌ Failed | 0 |
+| ⏭️ Skipped | 0 |
+| Pass Rate | 100% |
 
-## Tests
-- [PASS] group-a-capabilities (211 ms)
-  - notes: discovered 55 tools and 106 local MCP folders
-- [PASS] group-b-research (430 ms)
-  - notes: research scanned 2 urls (success=2, errors=0)
-- [PASS] group-c-runbooks (13 ms)
-  - notes: runbook created at C:\Users\justi\mcp-servers\agent-ops-hub\artifacts\runbooks-tests\quality-gate-demo-20260504_035205.json
-- [PASS] group-d-validation-gates (2997 ms)
-  - notes: validation gate: backward compat pass + severity-level warn-continues behavior verified
-- [PASS] group-e-artifact-summary (9 ms)
-  - notes: artifact summary produced expected failed-test signal; trend.runsAnalyzed=0
-- [PASS] group-f-agent-mode (3506 ms)
-  - notes: preflight=100, avgBenchmarkMs=1184
-- [PASS] group-g-diff-plans (15 ms)
-  - notes: diff found: +1 added, -1 removed, ~1 changed
-- [PASS] group-h-scaffold (7 ms)
-  - notes: scaffold generated (dry) and written to C:\Users\justi\mcp-servers\agent-ops-hub\artifacts\scaffold-test\group-z-validation\test.js
-- [PASS] group-i-compare-tools (24 ms)
-  - notes: self: 90 tools identical; cross: +69 in os-bridge, -89 vs agent-ops-hub
-- [PASS] group-j-new-tools (427 ms)
-  - notes: validate_json_schema ✓, find_missing_tests (total=90, missing=90), code_quality_gate score=1 allPassed=true, roadmap_tracker ✓, scan_coverage=0/90
-- [PASS] group-k-specialist-team (13 ms)
-  - notes: specialist roster=40, pods=4, waves=2
-- [PASS] group-l-research-loop (496 ms)
-  - notes: research pulse scanned=2, ideas=3, persisted=C:\Users\justi\mcp-servers\agent-ops-hub\artifacts\research-pulses-tests\research-pulse-20260504_035213.json, cyclePods=3
-- [PASS] group-m-media-tools (120 ms)
-  - notes: media: svg generated + analyzed, video mode=fallback
-- [PASS] group-n-skill-pack (346 ms)
-  - notes: skill-pack manifest skills=12, docsIndexUrls=106
-- [PASS] group-o-loop-controller (2387 ms)
-  - notes: loop controller: cyclesRun=2, totalCycles=2, snapshots=2, quality=77
-- [PASS] group-p-drift-sync-changelog (1887 ms)
-  - notes: drift: severity=warning findings=1 | sync: repos=2 clean=1 | changelog: commits=20 from=(beginning) | rca: cause=assertion_error severity=high multiPatterns=3
-- [PASS] group-q-specialist-execution (28 ms)
+## Results
+✅ `check_server_health` — health check
+✅ `list_local_mcp_servers` — list local servers
+✅ `agent_mode_preflight` — agent mode preflight
+✅ `semantic_tool_search` — semantic tool search
+✅ `tool_dependency_graph` — tool dependency graph
+✅ `code_complexity_scan` — code complexity scan
+✅ `estimate_refactor_risk` — estimate refactor risk
+✅ `compare_server_capabilities` — compare server capabilities
+✅ `research_agent_patterns` — research agent patterns
+✅ `research_improvement_ideas` — research improvement ideas
+✅ `create_execution_runbook` — create execution runbook
+✅ `run_validation_gate` — run validation gate
+✅ `benchmark_validation_gate` — benchmark validation gate
+✅ `summarize_test_artifacts` — summarize test artifacts
+✅ `diff_execution_plans` — diff execution plans
+✅ `generate_test_scaffold` — generate test scaffold
+✅ `dispatch_specialist_task` — dispatch specialist task
+✅ `dispatch_specialist_task` — dispatch — security_engineer
+✅ `run_parallel_specialist_sprint` — run parallel sprint (design adversarial_review)
+✅ `specialist_work_log` — specialist work log
+✅ `get_sprint_quality_trend` — get sprint quality trend
+✅ `set_memory` — set memory (roadmap.version)
+✅ `get_memory` — get memory (roadmap.version)
+✅ `append_memory` — append memory (roadmap.completedItems)
+✅ `append_memory` — append memory (2nd item)
+✅ `get_memory` — get memory (completedItems array)
+✅ `set_memory` — set nested memory
+✅ `get_memory` — get nested memory
+✅ `get_memory` — get missing key
+✅ `adversarial_review` — basic adversarial review
+✅ `adversarial_review` — adversarial review — plan text
+✅ `adversarial_review` — adversarial review — diff text
+✅ `auto_implement_plan` — auto-implement dry run
+✅ `auto_implement_plan` — auto-implement apply
+✅ `auto_implement_plan` — file actually changed
+✅ `auto_implement_plan` — auto-implement with bad find (no match)
+✅ `auto_implement_plan` — nonexistent file errors
+✅ `scrape_research_url` — scrape research url (example.com)
+✅ `scrape_research_url` — scrape with save=true
+✅ `scrape_research_url` — scrape bad url (should error)
+✅ `register_tool` — register a dynamic tool
+✅ `test_dynamic_tool` — call registered dynamic tool
+✅ `register_tool` — duplicate rejected
+✅ `register_tool` — bad syntax rejected
+✅ `unregister_tool` — unregister dynamic tool
+✅ `unregister_tool` — unregistered tool fails
+✅ `unregister_tool` — core tool protected
+✅ `execute_dependency_graph` — linear 2-node graph
+✅ `execute_dependency_graph` — parallel 2-node graph (no edges)
+✅ `execute_dependency_graph` — diamond graph (a→b, a→c, b→d, c→d)
+✅ `execute_dependency_graph` — cycle detection (a→b, b→a)
+✅ `execute_dependency_graph` — stopOnError=true halts on fail
+✅ `load_skill_pack` — load skill pack
+✅ `sp_greet` — call sp_greet from skill pack
+✅ `sp_add` — call sp_add from skill pack
+✅ `list_loaded_skill_packs` — list loaded skill packs
+✅ `load_skill_pack` — duplicate pack rejected
+✅ `unload_skill_pack` — unload skill pack
+✅ `unload_skill_pack` — nonexistent pack errors
+✅ `list_available_servers` — list available servers
+✅ `list_available_servers` — list available servers (with health check)
+✅ `delegate_to_server` — delegate to self (get_memory)
+✅ `delegate_to_server` — bad server errors
+✅ `spawn_child_server` — spawn child server
+✅ `list_available_servers` — list available servers (child running)
+✅ `stop_child_server` — stop child server
+✅ `stop_child_server` — bad server stop errors
+✅ `evaluate_sprint_output` — evaluate sprint output
+✅ `synthesize_sprint_outputs` — synthesize sprint outputs

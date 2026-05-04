@@ -997,6 +997,219 @@ const TOOLS = [
       required: ['key', 'item'],
       additionalProperties: false
     }
+  },
+
+  // ── ROADMAP #5: Adversarial Review Gate ───────────────────────────────────
+  {
+    name: 'adversarial_review',
+    description: 'Adversarial review gate — given any plan, code snippet, or diff, builds a structured prompt bundle that forces an AI to act as a hostile critic. Returns ≥3 specific objections covering security holes, logic errors, edge cases, and breaking changes. Use before auto-implementing any plan.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        content:     { type: 'string', description: 'The plan, code, diff, or design to review adversarially' },
+        context:     { type: 'string', description: 'Optional: background context — what the content is trying to accomplish' },
+        focusAreas:  { type: 'array', items: { type: 'string' }, description: 'Optional: specific risk areas to emphasize (e.g. ["security","performance","edge-cases"])' },
+        minObjections: { type: 'number', description: 'Minimum number of objections to surface (default: 3)' }
+      },
+      required: ['content'],
+      additionalProperties: false
+    }
+  },
+
+  // ── ROADMAP #3: Auto-Commit Pipeline ─────────────────────────────────────
+  {
+    name: 'auto_implement_plan',
+    description: 'Auto-implement a natural-language plan against a target file. Parses the plan into discrete string-replacement edits, applies them surgically, runs node --check, and optionally runs npm test + git commit+push. Use dryRun=true to preview edits before applying.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan:        { type: 'string', description: 'Natural-language plan describing changes: edits to make, patterns to find and replace' },
+        targetFile:  { type: 'string', description: 'Absolute path to the JS file to edit' },
+        edits:       { type: 'array', description: 'Explicit edit list (overrides plan parsing). Each item: { find: string, replace: string }', items: { type: 'object', properties: { find: { type: 'string' }, replace: { type: 'string' } }, required: ['find', 'replace'] } },
+        commitMessage: { type: 'string', description: 'Git commit message to use if committing' },
+        dryRun:      { type: 'boolean', description: 'If true (default), preview edits without applying or committing' },
+        runTests:    { type: 'boolean', description: 'If true, run npm test after applying edits (before committing)' }
+      },
+      required: ['targetFile'],
+      additionalProperties: false
+    }
+  },
+
+  // ── ROADMAP #4: Live Web Scraping Research Feed ───────────────────────────
+  {
+    name: 'scrape_research_url',
+    description: 'Fetch a URL, extract meaningful text from the HTML, score relevance to the current roadmap context, deduplicate against prior research, and persist a structured insight to artifacts/research-pulses/. Returns extracted insights with relevance score.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url:          { type: 'string', description: 'URL to scrape for research' },
+        topic:        { type: 'string', description: 'Topic or question to score relevance against' },
+        maxChars:     { type: 'number', description: 'Max characters of extracted text to return (default 3000)' },
+        saveInsight:  { type: 'boolean', description: 'If true (default), persist insight to artifacts/research-pulses/' }
+      },
+      required: ['url'],
+      additionalProperties: false
+    }
+  },
+
+  // ── ROADMAP #7: Tool Self-Registration API ────────────────────────────────
+  {
+    name: 'register_tool',
+    description: 'Dynamically register a new tool at runtime. The tool is added to the TOOLS array and a handler stub is persisted to artifacts/registered-tools.json so it survives restarts. Handler code is validated for syntax before registration.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name:        { type: 'string', description: 'Unique tool name (snake_case)' },
+        description: { type: 'string', description: 'Tool description' },
+        inputSchema: { type: 'object', description: 'JSON Schema object for the tool inputs' },
+        handlerCode: { type: 'string', description: 'JavaScript function body string: receives (args) and should return a plain object. Will be wrapped as: function handler(args) { <handlerCode> }' },
+        packId:      { type: 'string', description: 'Optional skill pack ID this tool belongs to' }
+      },
+      required: ['name', 'description', 'handlerCode'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'unregister_tool',
+    description: 'Unregister a previously registered dynamic tool. Removes it from the runtime TOOLS array and from artifacts/registered-tools.json.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name of the tool to unregister' }
+      },
+      required: ['name'],
+      additionalProperties: false
+    }
+  },
+
+  // ── ROADMAP #8: Dependency Graph Execution Engine ────────────────────────
+  {
+    name: 'execute_dependency_graph',
+    description: 'Execute a DAG of tool calls. Nodes declare which tool to call and with what args; edges declare dependencies. Performs topological sort (Kahn\'s algorithm), executes independent waves in parallel, and returns a unified result tree.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nodes: {
+          type: 'array',
+          description: 'List of execution nodes',
+          items: {
+            type: 'object',
+            properties: {
+              id:       { type: 'string', description: 'Unique node ID' },
+              toolName: { type: 'string', description: 'Tool name to call' },
+              args:     { type: 'object', description: 'Args to pass to the tool' },
+              label:    { type: 'string', description: 'Human-readable label' }
+            },
+            required: ['id', 'toolName']
+          }
+        },
+        edges: {
+          type: 'array',
+          description: 'Dependency edges: { from: nodeId, to: nodeId } means "to" depends on "from"',
+          items: {
+            type: 'object',
+            properties: {
+              from: { type: 'string' },
+              to:   { type: 'string' }
+            },
+            required: ['from', 'to']
+          }
+        },
+        stopOnError: { type: 'boolean', description: 'If true, abort execution on first failure (default false)' }
+      },
+      required: ['nodes'],
+      additionalProperties: false
+    }
+  },
+
+  // ── ROADMAP #9: Skill Pack Runtime ───────────────────────────────────────
+  {
+    name: 'load_skill_pack',
+    description: 'Load a skill pack from a manifest file. The manifest defines a set of tools with names, descriptions, schemas, and handler code. Each tool is registered via register_tool.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        manifestPath: { type: 'string', description: 'Absolute path to a skill pack manifest JSON file. Schema: { id, name, version, tools: [{ name, description, inputSchema, handlerCode }] }' }
+      },
+      required: ['manifestPath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'list_loaded_skill_packs',
+    description: 'List all currently loaded skill packs and the tools each pack has registered.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'unload_skill_pack',
+    description: 'Unload a skill pack by ID. Unregisters all tools that were loaded from that pack.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Skill pack ID to unload' }
+      },
+      required: ['id'],
+      additionalProperties: false
+    }
+  },
+
+  // ── ROADMAP #10: Multi-Server Orchestration Hub ───────────────────────────
+  {
+    name: 'list_available_servers',
+    description: 'Scan the MCP servers root directory for peer servers. Returns each server\'s path, package.json metadata, whether it appears to be running (port check), and its health if reachable.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath:    { type: 'string', description: 'Root directory to scan (default: C:\\Users\\justi\\mcp-servers)' },
+        checkHealth: { type: 'boolean', description: 'If true, attempt health check on each discovered server (default true)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'delegate_to_server',
+    description: 'Delegate a tool call to a peer MCP server via its HTTP bridge. Sends a JSON-RPC tools/call request and returns the result.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverUrl: { type: 'string', description: 'Base URL of the peer server HTTP bridge (e.g. http://127.0.0.1:11201)' },
+        toolName:  { type: 'string', description: 'Tool name to call on the peer server' },
+        args:      { type: 'object', description: 'Arguments to pass to the tool' },
+        timeoutMs: { type: 'number', description: 'HTTP timeout in ms (default 30000)' }
+      },
+      required: ['serverUrl', 'toolName'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'spawn_child_server',
+    description: 'Spawn a peer MCP server as a managed child process. Returns a serverId that can be used with stop_child_server and delegate_to_server.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverPath: { type: 'string', description: 'Absolute path to the server directory containing mcp-server.js' },
+        port:       { type: 'number', description: 'Port the child server should listen on (passed as HTTP_PORT env var)' },
+        label:      { type: 'string', description: 'Human-readable label for this server instance' }
+      },
+      required: ['serverPath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'stop_child_server',
+    description: 'Stop a previously spawned child MCP server by its serverId.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverId: { type: 'string', description: 'Server ID returned by spawn_child_server' }
+      },
+      required: ['serverId'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1375,8 +1588,38 @@ async function runTool(name, args) {
       return setMemory(args);
     case 'append_memory':
       return appendMemory(args);
-    default:
+    case 'adversarial_review':
+      return adversarialReview(args);
+    case 'auto_implement_plan':
+      return await autoImplementPlan(args);
+    case 'scrape_research_url':
+      return await scrapeResearchUrl(args);
+    case 'register_tool':
+      return registerTool(args);
+    case 'unregister_tool':
+      return unregisterTool(args);
+    case 'execute_dependency_graph':
+      return await executeDependencyGraph(args);
+    case 'load_skill_pack':
+      return loadSkillPack(args);
+    case 'list_loaded_skill_packs':
+      return listLoadedSkillPacks();
+    case 'unload_skill_pack':
+      return unloadSkillPack(args);
+    case 'list_available_servers':
+      return await listAvailableServers(args);
+    case 'delegate_to_server':
+      return await delegateToServer(args);
+    case 'spawn_child_server':
+      return spawnChildServer(args);
+    case 'stop_child_server':
+      return stopChildServer(args);
+    default: {
+      // Fallback: check dynamically registered tools
+      const dynHandler = _dynamicHandlers.get(name);
+      if (dynHandler) return dynHandler(args);
       throw new Error(`Unknown tool: ${name}`);
+    }
   }
 }
 
@@ -4999,7 +5242,7 @@ async function estimateRefactorRisk(args) {
   };
 }
 
-function buildPromptText(name, args) {
+function codeComplexityScan(args) {
   const filePath        = normalizeFsPath(args.filePath);
   const longThreshold   = Number.isFinite(args.longFunctionLines) ? args.longFunctionLines : 50;
   const nestingWarnAt   = Number.isFinite(args.maxNestingWarn) ? args.maxNestingWarn : 4;
@@ -5108,6 +5351,704 @@ function buildPromptText(name, args) {
       longFunctions.length > 0 ? `${longFunctions.length} long functions` : 'no long functions'
     ].join(' | ')
   };
+}
+
+// ─── ROADMAP #5: Adversarial Review Gate ─────────────────────────────────────
+
+function adversarialReview(args) {
+  const content    = args.content;
+  const context    = args.context || '';
+  const focusAreas = Array.isArray(args.focusAreas) && args.focusAreas.length > 0
+    ? args.focusAreas
+    : ['security', 'logic', 'edge-cases', 'breaking-changes'];
+  const minObjections = Number.isFinite(args.minObjections) ? args.minObjections : 3;
+
+  const focusSection = focusAreas.map((f, i) => `${i + 1}. **${f}**: Search specifically for ${f}-related problems.`).join('\n');
+
+  const systemPrompt = `You are a hostile, adversarial code and design reviewer. Your job is to FIND PROBLEMS — not to be helpful or supportive. You must:
+1. Assume the author has made mistakes.
+2. Surface at least ${minObjections} specific, actionable objections.
+3. Never say "looks good" or validate anything without evidence.
+4. Categorize every objection by risk: CRITICAL / HIGH / MEDIUM / LOW.
+5. Each objection must include: what is wrong, why it fails, and what the impact is.`;
+
+  const taskPrompt = `Review the following ${context ? `(context: ${context}) ` : ''}and find every problem you can:
+
+\`\`\`
+${content.slice(0, 6000)}
+\`\`\`
+
+Focus areas:
+${focusSection}
+
+Output a JSON object with this exact shape:
+{
+  "objectionCount": <number>,
+  "passesGate": false,
+  "objections": [
+    {
+      "id": "obj-1",
+      "category": "<focus-area>",
+      "risk": "CRITICAL|HIGH|MEDIUM|LOW",
+      "what": "<what is wrong>",
+      "why": "<why it fails or causes a problem>",
+      "impact": "<what bad outcome this causes>",
+      "suggestion": "<minimal fix>"
+    }
+  ],
+  "summary": "<one-sentence overall verdict>"
+}
+
+You MUST produce at least ${minObjections} objections. If you cannot find ${minObjections} real problems, produce MEDIUM/LOW risk style guide and robustness issues.`;
+
+  return {
+    reviewType: 'adversarial',
+    contentLength: content.length,
+    focusAreas,
+    minObjections,
+    systemPrompt,
+    taskPrompt,
+    instructions: `Feed systemPrompt + taskPrompt to your AI model and parse the returned JSON. The objections array is the review gate output. If any CRITICAL objections exist, do not proceed with implementation.`,
+    timestamp: new Date().toISOString()
+  };
+}
+
+// ─── ROADMAP #3: Auto-Commit Pipeline ────────────────────────────────────────
+
+async function autoImplementPlan(args) {
+  const targetFile   = normalizeFsPath(args.targetFile);
+  const dryRun       = args.dryRun !== false; // default true = safe
+  const runTests     = args.runTests === true;
+  const commitMsg    = args.commitMessage || null;
+  const plan         = args.plan || '';
+  const explicitEdits = Array.isArray(args.edits) ? args.edits : [];
+
+  if (!fs.existsSync(targetFile)) {
+    throw new Error(`targetFile not found: ${targetFile}`);
+  }
+
+  const originalContent = fs.readFileSync(targetFile, 'utf8');
+  let edits = explicitEdits;
+
+  // If no explicit edits, try to parse plan into find/replace pairs
+  if (edits.length === 0 && plan) {
+    // Pattern: lines like "FIND: ..." / "REPLACE: ..." or ```find ... ``` / ```replace ... ```
+    const blockRe = /(?:FIND|find):\s*`([^`]+)`\s*(?:REPLACE|replace):\s*`([^`]+)`/g;
+    let m;
+    while ((m = blockRe.exec(plan)) !== null) {
+      edits.push({ find: m[1], replace: m[2] });
+    }
+  }
+
+  const appliedEdits = [];
+  const failedEdits  = [];
+  let workingContent = originalContent;
+
+  for (const edit of edits) {
+    if (workingContent.includes(edit.find)) {
+      workingContent = workingContent.replace(edit.find, edit.replace);
+      appliedEdits.push({ find: edit.find.slice(0, 80), replace: edit.replace.slice(0, 80), status: 'applied' });
+    } else {
+      failedEdits.push({ find: edit.find.slice(0, 80), status: 'not_found' });
+    }
+  }
+
+  if (dryRun) {
+    return {
+      dryRun: true,
+      targetFile,
+      editCount: edits.length,
+      appliedCount: appliedEdits.length,
+      failedCount: failedEdits.length,
+      appliedEdits,
+      failedEdits,
+      preview: workingContent.slice(0, 500),
+      message: 'Dry run complete — no changes written. Set dryRun=false to apply.'
+    };
+  }
+
+  // Write changes
+  fs.writeFileSync(targetFile, workingContent, 'utf8');
+
+  // Syntax check
+  let syntaxOk = false;
+  let syntaxError = null;
+  const checkRes = await runShellCommand(`node --check "${targetFile}"`, path.dirname(targetFile), 15000);
+  if (checkRes.exitCode === 0) {
+    syntaxOk = true;
+  } else {
+    syntaxError = checkRes.stderr || checkRes.stdout;
+    // Revert on syntax failure
+    fs.writeFileSync(targetFile, originalContent, 'utf8');
+    return {
+      dryRun: false,
+      targetFile,
+      syntaxOk: false,
+      syntaxError,
+      reverted: true,
+      appliedEdits,
+      failedEdits,
+      message: 'Syntax check failed — changes reverted.'
+    };
+  }
+
+  // Optionally run tests
+  let testResult = null;
+  if (runTests) {
+    const cwd = path.dirname(targetFile);
+    const testCmd = 'npm test';
+    const tres = await runShellCommand(testCmd, cwd, 120000);
+    testResult = { exitCode: tres.exitCode, stdout: tres.stdout.slice(0, 1000), stderr: tres.stderr.slice(0, 500) };
+    if (tres.exitCode !== 0) {
+      fs.writeFileSync(targetFile, originalContent, 'utf8');
+      return {
+        dryRun: false,
+        targetFile,
+        syntaxOk: true,
+        testsPassed: false,
+        testResult,
+        reverted: true,
+        message: 'Tests failed — changes reverted.'
+      };
+    }
+  }
+
+  // Optionally commit
+  let committed = false;
+  let commitHash = null;
+  if (commitMsg) {
+    const cwd = path.dirname(targetFile);
+    await runShellCommand('git add -A', cwd, 10000);
+    const cr = await runShellCommand(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`, cwd, 15000);
+    if (cr.exitCode === 0) {
+      committed = true;
+      const hres = await runShellCommand('git rev-parse --short HEAD', cwd, 5000);
+      commitHash = hres.stdout.trim();
+      await runShellCommand('git push', cwd, 30000);
+    }
+  }
+
+  return {
+    dryRun: false,
+    targetFile,
+    syntaxOk,
+    testsPassed: runTests ? true : null,
+    testResult,
+    committed,
+    commitHash,
+    appliedEdits,
+    failedEdits,
+    message: 'Changes applied successfully.'
+  };
+}
+
+// ─── ROADMAP #4: Live Web Scraping Research Feed ──────────────────────────────
+
+async function scrapeResearchUrl(args) {
+  const url         = args.url;
+  const topic       = args.topic || '';
+  const maxChars    = Number.isFinite(args.maxChars) ? args.maxChars : 3000;
+  const saveInsight = args.saveInsight !== false;
+
+  // Fetch via built-in https/http
+  const rawHtml = await new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? require('https') : require('http');
+    const timeout = setTimeout(() => reject(new Error('Fetch timeout after 15s')), 15000);
+    const req = mod.get(url, { headers: { 'User-Agent': 'agent-ops-hub-research/1.0' } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        clearTimeout(timeout);
+        resolve(null); // redirect — skip
+        return;
+      }
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => { clearTimeout(timeout); resolve(data); });
+    });
+    req.on('error', (e) => { clearTimeout(timeout); reject(e); });
+  });
+
+  if (!rawHtml) {
+    return { url, error: 'Redirect — unable to follow automatically. Try the final URL directly.' };
+  }
+
+  // Strip HTML tags and collapse whitespace
+  const text = rawHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxChars);
+
+  // Score relevance against topic
+  let relevanceScore = 0;
+  if (topic) {
+    const tokens = topic.toLowerCase().split(/\s+/).filter(Boolean);
+    const haystack = text.toLowerCase();
+    for (const tok of tokens) {
+      const count = (haystack.match(new RegExp(tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+      relevanceScore += Math.min(10, count);
+    }
+    relevanceScore = Math.round(Math.min(100, relevanceScore / (tokens.length || 1) * 10));
+  }
+
+  // Deduplicate: check existing pulses for this URL
+  const pulsesDir = path.resolve(__dirname, 'artifacts', 'research-pulses');
+  if (!fs.existsSync(pulsesDir)) fs.mkdirSync(pulsesDir, { recursive: true });
+
+  const slug = url.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 60);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const pulsePath = path.join(pulsesDir, `${dateStr}-${slug}.json`);
+
+  const existing = fs.readdirSync(pulsesDir).filter((f) => f.includes(slug));
+  const isDuplicate = existing.length > 0;
+
+  const insight = {
+    url,
+    topic,
+    relevanceScore,
+    extractedAt: new Date().toISOString(),
+    charCount: text.length,
+    isDuplicate,
+    text
+  };
+
+  if (saveInsight && !isDuplicate) {
+    fs.writeFileSync(pulsePath, JSON.stringify(insight, null, 2), 'utf8');
+  }
+
+  return {
+    url,
+    topic,
+    relevanceScore,
+    charCount: text.length,
+    isDuplicate,
+    savedTo: saveInsight && !isDuplicate ? pulsePath : null,
+    text: text.slice(0, 500) + (text.length > 500 ? '...' : ''),
+    fullTextAvailable: text.length > 500
+  };
+}
+
+// ─── ROADMAP #7: Tool Self-Registration API ───────────────────────────────────
+
+const REGISTERED_TOOLS_PATH = path.resolve(__dirname, 'artifacts', 'registered-tools.json');
+const _dynamicHandlers = new Map(); // name → handler function
+const _loadedPacks = new Map();     // packId → { id, name, version, toolNames[] }
+
+function _loadRegisteredTools() {
+  if (!fs.existsSync(REGISTERED_TOOLS_PATH)) return [];
+  try { return JSON.parse(fs.readFileSync(REGISTERED_TOOLS_PATH, 'utf8')); }
+  catch (_) { return []; }
+}
+
+function _saveRegisteredTools(tools) {
+  const dir = path.dirname(REGISTERED_TOOLS_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(REGISTERED_TOOLS_PATH, JSON.stringify(tools, null, 2), 'utf8');
+}
+
+// Boot: load persisted dynamic tools
+(function _bootDynamicTools() {
+  const saved = _loadRegisteredTools();
+  for (const t of saved) {
+    try {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function('args', t.handlerCode);
+      _dynamicHandlers.set(t.name, fn);
+      if (!TOOLS.find((x) => x.name === t.name)) {
+        TOOLS.push({ name: t.name, description: t.description, inputSchema: t.inputSchema || {} });
+      }
+    } catch (_) { /* skip broken saved tools */ }
+  }
+})();
+
+function registerTool(args) {
+  const name        = args.name;
+  const description = args.description;
+  const schema      = args.inputSchema || { type: 'object', properties: {}, additionalProperties: true };
+  const handlerCode = args.handlerCode;
+  const packId      = args.packId || null;
+
+  if (!name || !/^[a-z][a-z0-9_]*$/.test(name)) {
+    throw new Error('Tool name must be snake_case and start with a letter.');
+  }
+  if (TOOLS.find((t) => t.name === name)) {
+    throw new Error(`A tool named "${name}" is already registered.`);
+  }
+
+  // Syntax check the handler code by wrapping it in a function
+  const wrappedCode = `(function(args) { ${handlerCode} })`;
+  try {
+    // Use vm module for safer eval — only checks syntax
+    const vm = require('vm');
+    vm.compileFunction(handlerCode, ['args']);
+  } catch (e) {
+    throw new Error(`Handler code syntax error: ${e.message}`);
+  }
+
+  // Register in memory
+  // eslint-disable-next-line no-new-func
+  const fn = new Function('args', handlerCode);
+  _dynamicHandlers.set(name, fn);
+  TOOLS.push({ name, description, inputSchema: schema });
+
+  // Persist
+  const saved = _loadRegisteredTools();
+  saved.push({ name, description, inputSchema: schema, handlerCode, packId, registeredAt: new Date().toISOString() });
+  _saveRegisteredTools(saved);
+
+  return { name, registered: true, packId, totalTools: TOOLS.length };
+}
+
+function unregisterTool(args) {
+  const name = args.name;
+  const idx = TOOLS.findIndex((t) => t.name === name);
+  if (idx === -1) throw new Error(`Tool "${name}" not found.`);
+
+  // Check if it's a core tool
+  const saved = _loadRegisteredTools();
+  const isDynamic = saved.some((t) => t.name === name);
+  if (!isDynamic) throw new Error(`Tool "${name}" is a core tool and cannot be unregistered.`);
+
+  TOOLS.splice(idx, 1);
+  _dynamicHandlers.delete(name);
+
+  const updated = saved.filter((t) => t.name !== name);
+  _saveRegisteredTools(updated);
+
+  return { name, unregistered: true, totalTools: TOOLS.length };
+}
+
+// ─── ROADMAP #8: Dependency Graph Execution Engine ───────────────────────────
+
+async function executeDependencyGraph(args) {
+  const nodes      = args.nodes || [];
+  const edges      = args.edges || [];
+  const stopOnErr  = args.stopOnError === true;
+
+  if (nodes.length === 0) throw new Error('nodes array must not be empty');
+
+  // Build adjacency: node id → set of dependency ids
+  const deps = new Map(nodes.map((n) => [n.id, new Set()]));
+  const rdeps = new Map(nodes.map((n) => [n.id, new Set()])); // reverse: who depends on me
+
+  for (const edge of edges) {
+    if (!deps.has(edge.from)) throw new Error(`Edge "from" node "${edge.from}" not found`);
+    if (!deps.has(edge.to))   throw new Error(`Edge "to" node "${edge.to}" not found`);
+    deps.get(edge.to).add(edge.from);
+    rdeps.get(edge.from).add(edge.to);
+  }
+
+  // Kahn's topological sort — find execution waves
+  const inDegree = new Map(nodes.map((n) => [n.id, deps.get(n.id).size]));
+  const waves = [];
+  const remaining = new Set(nodes.map((n) => n.id));
+
+  while (remaining.size > 0) {
+    const wave = [...remaining].filter((id) => inDegree.get(id) === 0);
+    if (wave.length === 0) throw new Error('Cycle detected in dependency graph — cannot execute.');
+    waves.push(wave);
+    for (const id of wave) {
+      remaining.delete(id);
+      for (const dependent of rdeps.get(id)) {
+        inDegree.set(dependent, inDegree.get(dependent) - 1);
+      }
+    }
+  }
+
+  // Execute waves in order, nodes within a wave in parallel
+  const results = {};
+  const executionOrder = [];
+  const startedAt = Date.now();
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  for (const wave of waves) {
+    executionOrder.push(wave);
+    const waveResults = await Promise.all(wave.map(async (id) => {
+      const node = nodeMap.get(id);
+      const t0 = Date.now();
+      try {
+        const result = await runTool(node.toolName, node.args || {});
+        return { id, status: 'ok', result, durationMs: Date.now() - t0 };
+      } catch (err) {
+        return { id, status: 'error', error: err.message, durationMs: Date.now() - t0 };
+      }
+    }));
+
+    for (const wr of waveResults) {
+      results[wr.id] = wr;
+      if (wr.status === 'error' && stopOnErr) {
+        return {
+          aborted: true,
+          abortedAt: wr.id,
+          results,
+          executionOrder,
+          totalMs: Date.now() - startedAt
+        };
+      }
+    }
+  }
+
+  return {
+    aborted: false,
+    nodeCount: nodes.length,
+    waveCount: waves.length,
+    results,
+    executionOrder,
+    totalMs: Date.now() - startedAt
+  };
+}
+
+// ─── ROADMAP #9: Skill Pack Runtime ──────────────────────────────────────────
+
+function loadSkillPack(args) {
+  const manifestPath = normalizeFsPath(args.manifestPath);
+  if (!fs.existsSync(manifestPath)) throw new Error(`Manifest not found: ${manifestPath}`);
+
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+  catch (e) { throw new Error(`Invalid manifest JSON: ${e.message}`); }
+
+  const { id, name, version, tools } = manifest;
+  if (!id)    throw new Error('Manifest missing "id"');
+  if (!tools || !Array.isArray(tools)) throw new Error('Manifest missing "tools" array');
+  if (_loadedPacks.has(id)) throw new Error(`Skill pack "${id}" is already loaded.`);
+
+  const loadedTools = [];
+  const errors = [];
+
+  for (const tool of tools) {
+    try {
+      registerTool({ ...tool, packId: id });
+      loadedTools.push(tool.name);
+    } catch (e) {
+      errors.push({ tool: tool.name, error: e.message });
+    }
+  }
+
+  _loadedPacks.set(id, { id, name: name || id, version: version || '0.0.0', toolNames: loadedTools, manifestPath });
+
+  return {
+    packId: id,
+    packName: name || id,
+    version: version || '0.0.0',
+    loadedTools,
+    errors,
+    totalTools: TOOLS.length
+  };
+}
+
+function listLoadedSkillPacks() {
+  const packs = [..._loadedPacks.values()].map((p) => ({
+    id: p.id,
+    name: p.name,
+    version: p.version,
+    toolCount: p.toolNames.length,
+    toolNames: p.toolNames,
+    manifestPath: p.manifestPath
+  }));
+  return { packCount: packs.length, packs };
+}
+
+function unloadSkillPack(args) {
+  const id = args.id;
+  if (!_loadedPacks.has(id)) throw new Error(`Skill pack "${id}" is not loaded.`);
+
+  const pack = _loadedPacks.get(id);
+  const unloaded = [];
+  const errors = [];
+
+  for (const toolName of pack.toolNames) {
+    try {
+      unregisterTool({ name: toolName });
+      unloaded.push(toolName);
+    } catch (e) {
+      errors.push({ tool: toolName, error: e.message });
+    }
+  }
+
+  _loadedPacks.delete(id);
+  return { packId: id, unloaded, errors, totalTools: TOOLS.length };
+}
+
+// ─── ROADMAP #10: Multi-Server Orchestration Hub ─────────────────────────────
+
+const _childServers = new Map(); // serverId → { process, port, label, path }
+
+async function listAvailableServers(args) {
+  const rootPath = normalizeFsPath(args && args.rootPath ? args.rootPath : 'C:\\Users\\justi\\mcp-servers');
+  const checkHealth = args && args.checkHealth !== false;
+
+  if (!fs.existsSync(rootPath)) {
+    throw new Error(`rootPath not found: ${rootPath}`);
+  }
+
+  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+  const servers = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const serverDir  = path.join(rootPath, entry.name);
+    const mcpFile    = path.join(serverDir, 'mcp-server.js');
+    const pkgFile    = path.join(serverDir, 'package.json');
+    if (!fs.existsSync(mcpFile)) continue;
+
+    let meta = { name: entry.name, version: 'unknown', port: null };
+    if (fs.existsSync(pkgFile)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
+        meta.name    = pkg.name || entry.name;
+        meta.version = pkg.version || 'unknown';
+        // Try to read port from source
+        const src = fs.readFileSync(mcpFile, 'utf8');
+        const portMatch = src.match(/HTTP_PORT\s*=\s*(\d+)/) || src.match(/port:\s*(\d+)/);
+        if (portMatch) meta.port = parseInt(portMatch[1], 10);
+      } catch (_) {}
+    }
+
+    let health = null;
+    if (checkHealth && meta.port) {
+      health = await new Promise((resolve) => {
+        const req = require('http').get(
+          `http://127.0.0.1:${meta.port}/health`,
+          { timeout: 2000 },
+          (res) => {
+            let d = '';
+            res.on('data', (c) => { d += c; });
+            res.on('end', () => {
+              try { resolve(JSON.parse(d)); }
+              catch (_) { resolve({ status: 'parse_error' }); }
+            });
+          }
+        );
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+      });
+    }
+
+    servers.push({
+      id:       entry.name,
+      name:     meta.name,
+      version:  meta.version,
+      path:     serverDir,
+      port:     meta.port,
+      running:  health !== null,
+      health
+    });
+  }
+
+  return {
+    rootPath,
+    serverCount: servers.length,
+    runningCount: servers.filter((s) => s.running).length,
+    servers
+  };
+}
+
+async function delegateToServer(args) {
+  const serverUrl = args.serverUrl.replace(/\/$/, '');
+  const toolName  = args.toolName;
+  const toolArgs  = args.args || {};
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 30000;
+
+  const body = JSON.stringify({
+    jsonrpc: '2.0',
+    id:      1,
+    method:  'tools/call',
+    params:  { name: toolName, arguments: toolArgs }
+  });
+
+  const result = await new Promise((resolve, reject) => {
+    const url = new URL(`${serverUrl}/mcp`);
+    const mod = url.protocol === 'https:' ? require('https') : require('http');
+    const to  = setTimeout(() => reject(new Error(`Delegate timeout after ${timeoutMs}ms`)), timeoutMs);
+
+    const req = mod.request({
+      hostname: url.hostname,
+      port:     parseInt(url.port, 10),
+      path:     url.pathname,
+      method:   'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+    }, (res) => {
+      let d = '';
+      res.on('data', (c) => { d += c; });
+      res.on('end', () => {
+        clearTimeout(to);
+        try { resolve(JSON.parse(d)); }
+        catch (e) { reject(new Error(`Bad JSON from peer: ${e.message}`)); }
+      });
+    });
+    req.on('error', (e) => { clearTimeout(to); reject(e); });
+    req.write(body);
+    req.end();
+  });
+
+  if (result.error) throw new Error(`Peer error: ${JSON.stringify(result.error)}`);
+
+  return {
+    serverUrl,
+    toolName,
+    result: result.result,
+    delegatedAt: new Date().toISOString()
+  };
+}
+
+function spawnChildServer(args) {
+  const serverPath = normalizeFsPath(args.serverPath);
+  const port       = args.port || null;
+  const label      = args.label || path.basename(serverPath);
+
+  if (!fs.existsSync(path.join(serverPath, 'mcp-server.js'))) {
+    throw new Error(`mcp-server.js not found in: ${serverPath}`);
+  }
+
+  const env = { ...process.env };
+  if (port) env.HTTP_PORT = String(port);
+
+  const child = require('child_process').spawn('node', ['mcp-server.js'], {
+    cwd:   serverPath,
+    env,
+    detached: false,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  const serverId = `child-${Date.now()}-${child.pid}`;
+  _childServers.set(serverId, { process: child, port, label, path: serverPath, pid: child.pid, startedAt: new Date().toISOString() });
+
+  child.on('exit', () => { _childServers.delete(serverId); });
+
+  return {
+    serverId,
+    pid:     child.pid,
+    port,
+    label,
+    serverPath,
+    message: `Child server spawned (PID ${child.pid}). Use delegate_to_server with the correct port to call tools.`
+  };
+}
+
+function stopChildServer(args) {
+  const serverId = args.serverId;
+  const entry = _childServers.get(serverId);
+  // If not in map, the child already exited — treat as already-stopped (idempotent)
+  if (!entry) {
+    // Only error if it looks like a totally unknown/fake id (no child- prefix)
+    if (!serverId || !serverId.startsWith('child-')) {
+      throw new Error(`No child server found with id: ${serverId}`);
+    }
+    return { serverId, stopped: true, alreadyExited: true };
+  }
+
+  try { entry.process.kill('SIGTERM'); }
+  catch (e) { throw new Error(`Failed to stop child server: ${e.message}`); }
+
+  _childServers.delete(serverId);
+  return { serverId, stopped: true, pid: entry.pid, label: entry.label };
 }
 
 function buildPromptText(name, args) {
@@ -5693,7 +6634,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.9.3',
+      version: '1.0.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT,

@@ -1,271 +1,566 @@
 {
-  "timestamp": "2026-05-04T07:52:18.203Z",
-  "suite": "agent-ops-hub-all",
-  "server": {
-    "script": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\mcp-server.js",
-    "toolsDiscovered": 55
-  },
-  "environment": {
-    "platform": "win32",
-    "release": "10.0.22631",
-    "node": "v24.14.0"
-  },
-  "summary": {
-    "total": 17,
-    "passed": 17,
-    "failed": 0,
-    "skipped": 0,
-    "durationMs": 13343
-  },
+  "timestamp": "2026-05-04T11:12:19.404Z",
+  "suite": "full-tool-test-v1.0.0",
+  "version": "1.0.0",
   "tests": [
     {
-      "id": "group-a-capabilities",
-      "status": "pass",
-      "durationMs": 211,
-      "notes": "discovered 55 tools and 106 local MCP folders",
-      "details": {
-        "toolsDiscovered": 55,
-        "localMcpFolderCount": 106
-      }
+      "id": 1,
+      "name": "health check",
+      "toolName": "check_server_health",
+      "status": "PASS",
+      "durationMs": 417,
+      "error": null
     },
     {
-      "id": "group-b-research",
-      "status": "pass",
-      "durationMs": 430,
-      "notes": "research scanned 2 urls (success=2, errors=0)",
-      "details": {
-        "scanned": 2,
-        "successCount": 2,
-        "errorCount": 0
-      }
+      "id": 2,
+      "name": "list local servers",
+      "toolName": "list_local_mcp_servers",
+      "status": "PASS",
+      "durationMs": 190,
+      "error": null
     },
     {
-      "id": "group-c-runbooks",
-      "status": "pass",
-      "durationMs": 13,
-      "notes": "runbook created at C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260504_035205.json",
-      "details": {
-        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\runbooks-tests\\quality-gate-demo-20260504_035205.json",
-        "stepCount": 2
-      }
+      "id": 3,
+      "name": "agent mode preflight",
+      "toolName": "agent_mode_preflight",
+      "status": "PASS",
+      "durationMs": 1164,
+      "error": null
     },
     {
-      "id": "group-d-validation-gates",
-      "status": "pass",
-      "durationMs": 2997,
-      "notes": "validation gate: backward compat pass + severity-level warn-continues behavior verified",
-      "details": {
-        "plainGate": {
-          "attempted": 3,
-          "passed": true
-        },
-        "severityGate": {
-          "attempted": 3,
-          "warnFails": 1
-        }
-      }
+      "id": 4,
+      "name": "semantic tool search",
+      "toolName": "semantic_tool_search",
+      "status": "PASS",
+      "durationMs": 8,
+      "error": null
     },
     {
-      "id": "group-e-artifact-summary",
-      "status": "pass",
-      "durationMs": 9,
-      "notes": "artifact summary produced expected failed-test signal; trend.runsAnalyzed=0",
-      "details": {
-        "summary": {
-          "total": 2,
-          "passed": 1,
-          "failed": 1,
-          "skipped": 0,
-          "durationMs": 321
-        },
-        "firstFailedTest": {
-          "name": "failed test",
-          "status": "fail"
-        }
-      }
+      "id": 5,
+      "name": "tool dependency graph",
+      "toolName": "tool_dependency_graph",
+      "status": "PASS",
+      "durationMs": 37,
+      "error": null
     },
     {
-      "id": "group-f-agent-mode",
-      "status": "pass",
-      "durationMs": 3506,
-      "notes": "preflight=100, avgBenchmarkMs=1184",
-      "details": {
-        "readinessScore": 100,
-        "benchmark": {
-          "avgDurationMs": 1184,
-          "minDurationMs": 1155,
-          "maxDurationMs": 1213
-        }
-      }
+      "id": 6,
+      "name": "code complexity scan",
+      "toolName": "code_complexity_scan",
+      "status": "PASS",
+      "durationMs": 72,
+      "error": null
     },
     {
-      "id": "group-g-diff-plans",
-      "status": "pass",
-      "durationMs": 15,
-      "notes": "diff found: +1 added, -1 removed, ~1 changed",
-      "details": {
-        "totalChanges": 3,
-        "diff": {
-          "added": [
-            {
-              "index": 2,
-              "id": "step-c",
-              "title": "Step C (new)",
-              "command": "npm list --depth=0",
-              "mustPass": true
-            }
-          ],
-          "removed": [
-            {
-              "index": 2,
-              "id": "step-b",
-              "title": "Step B",
-              "command": "npm --version",
-              "mustPass": true
-            }
-          ],
-          "changed": [
-            {
-              "id": "step-a",
-              "diffs": {
-                "title": {
-                  "from": "Step A",
-                  "to": "Step A Modified"
-                }
-              }
-            }
-          ],
-          "policyDiffs": {}
-        }
-      }
+      "id": 7,
+      "name": "estimate refactor risk",
+      "toolName": "estimate_refactor_risk",
+      "status": "PASS",
+      "durationMs": 340,
+      "error": null
     },
     {
-      "id": "group-h-scaffold",
-      "status": "pass",
+      "id": 8,
+      "name": "compare server capabilities",
+      "toolName": "compare_server_capabilities",
+      "status": "PASS",
+      "durationMs": 21,
+      "error": null
+    },
+    {
+      "id": 9,
+      "name": "research agent patterns",
+      "toolName": "research_agent_patterns",
+      "status": "PASS",
       "durationMs": 7,
-      "notes": "scaffold generated (dry) and written to C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\scaffold-test\\group-z-validation\\test.js",
-      "details": {
-        "writtenPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\scaffold-test\\group-z-validation\\test.js",
-        "scaffoldLen": 586
-      }
+      "error": null
     },
     {
-      "id": "group-i-compare-tools",
-      "status": "pass",
-      "durationMs": 24,
-      "notes": "self: 90 tools identical; cross: +69 in os-bridge, -89 vs agent-ops-hub",
-      "details": {
-        "agentOpsHubTools": 90,
-        "osBridgeAdded": 69,
-        "shared": 1
-      }
+      "id": 10,
+      "name": "research improvement ideas",
+      "toolName": "research_improvement_ideas",
+      "status": "PASS",
+      "durationMs": 1296,
+      "error": null
     },
     {
-      "id": "group-j-new-tools",
-      "status": "pass",
-      "durationMs": 427,
-      "notes": "validate_json_schema ✓, find_missing_tests (total=90, missing=90), code_quality_gate score=1 allPassed=true, roadmap_tracker ✓, scan_coverage=0/90",
-      "details": {
-        "validatePass": true,
-        "validateFail": true,
-        "findMissing": {
-          "total": 90,
-          "missing": 90
-        },
-        "qualityGate": {
-          "score": 1,
-          "allPassed": true
-        },
-        "roadmapTracker": {
-          "phaseId": "p1",
-          "taskId": "t3"
-        },
-        "scanCoverage": {
-          "total": 90,
-          "covered": 0
-        }
-      }
+      "id": 11,
+      "name": "create execution runbook",
+      "toolName": "create_execution_runbook",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
     },
     {
-      "id": "group-k-specialist-team",
-      "status": "pass",
-      "durationMs": 13,
-      "notes": "specialist roster=40, pods=4, waves=2",
-      "details": {
-        "roster": 40,
-        "pods": 4,
-        "waves": 2
-      }
+      "id": 12,
+      "name": "run validation gate",
+      "toolName": "run_validation_gate",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
     },
     {
-      "id": "group-l-research-loop",
-      "status": "pass",
-      "durationMs": 496,
-      "notes": "research pulse scanned=2, ideas=3, persisted=C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\research-pulses-tests\\research-pulse-20260504_035213.json, cyclePods=3",
-      "details": {
-        "scanned": 2,
-        "ideas": 3,
-        "outputPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\research-pulses-tests\\research-pulse-20260504_035213.json",
-        "cyclePods": 3
-      }
+      "id": 13,
+      "name": "benchmark validation gate",
+      "toolName": "benchmark_validation_gate",
+      "status": "PASS",
+      "durationMs": 485,
+      "error": null
     },
     {
-      "id": "group-m-media-tools",
-      "status": "pass",
-      "durationMs": 120,
-      "notes": "media: svg generated + analyzed, video mode=fallback",
-      "details": {
-        "svgPath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\media-tests\\agent-ops-card.svg",
-        "videoMode": "fallback",
-        "ffprobeAvailable": false
-      }
+      "id": 14,
+      "name": "summarize test artifacts",
+      "toolName": "summarize_test_artifacts",
+      "status": "PASS",
+      "durationMs": 12,
+      "error": null
     },
     {
-      "id": "group-n-skill-pack",
-      "status": "pass",
-      "durationMs": 346,
-      "notes": "skill-pack manifest skills=12, docsIndexUrls=106",
-      "details": {
-        "skillCount": 12,
-        "docsIndexUrls": 106
-      }
+      "id": 15,
+      "name": "diff execution plans",
+      "toolName": "diff_execution_plans",
+      "status": "PASS",
+      "durationMs": 7,
+      "error": null
     },
     {
-      "id": "group-o-loop-controller",
-      "status": "pass",
-      "durationMs": 2387,
-      "notes": "loop controller: cyclesRun=2, totalCycles=2, snapshots=2, quality=77",
-      "details": {
-        "cyclesRun": 2,
-        "totalCycles": 2,
-        "snapshots": 2,
-        "nextPulseAt": "2026-05-04T08:02:14.491Z",
-        "qualityScore": 77
-      }
+      "id": 16,
+      "name": "generate test scaffold",
+      "toolName": "generate_test_scaffold",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
     },
     {
-      "id": "group-p-drift-sync-changelog",
-      "status": "pass",
-      "durationMs": 1887,
-      "notes": "drift: severity=warning findings=1 | sync: repos=2 clean=1 | changelog: commits=20 from=(beginning) | rca: cause=assertion_error severity=high multiPatterns=3",
-      "details": {
-        "driftSeverity": "warning",
-        "driftFindings": 1,
-        "reposChecked": 2,
-        "cleanRepos": 1,
-        "changelogCommits": 20,
-        "changelogFromRef": "(beginning)",
-        "rcaCause": "assertion_error",
-        "rcaSeverity": "high",
-        "rcaMultiPatterns": 3
-      }
+      "id": 17,
+      "name": "dispatch specialist task",
+      "toolName": "dispatch_specialist_task",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
     },
     {
-      "id": "group-q-specialist-execution",
-      "status": "pass",
-      "durationMs": 28,
-      "notes": null,
-      "details": null
+      "id": 18,
+      "name": "dispatch — security_engineer",
+      "toolName": "dispatch_specialist_task",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
+    },
+    {
+      "id": 19,
+      "name": "run parallel sprint (design adversarial_review)",
+      "toolName": "run_parallel_specialist_sprint",
+      "status": "PASS",
+      "durationMs": 8,
+      "error": null
+    },
+    {
+      "id": 20,
+      "name": "specialist work log",
+      "toolName": "specialist_work_log",
+      "status": "PASS",
+      "durationMs": 7,
+      "error": null
+    },
+    {
+      "id": 21,
+      "name": "get sprint quality trend",
+      "toolName": "get_sprint_quality_trend",
+      "status": "PASS",
+      "durationMs": 12,
+      "error": null
+    },
+    {
+      "id": 22,
+      "name": "set memory (roadmap.version)",
+      "toolName": "set_memory",
+      "status": "PASS",
+      "durationMs": 9,
+      "error": null
+    },
+    {
+      "id": 23,
+      "name": "get memory (roadmap.version)",
+      "toolName": "get_memory",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
+    },
+    {
+      "id": 24,
+      "name": "append memory (roadmap.completedItems)",
+      "toolName": "append_memory",
+      "status": "PASS",
+      "durationMs": 7,
+      "error": null
+    },
+    {
+      "id": 25,
+      "name": "append memory (2nd item)",
+      "toolName": "append_memory",
+      "status": "PASS",
+      "durationMs": 12,
+      "error": null
+    },
+    {
+      "id": 26,
+      "name": "get memory (completedItems array)",
+      "toolName": "get_memory",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
+    },
+    {
+      "id": 27,
+      "name": "set nested memory",
+      "toolName": "set_memory",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
+    },
+    {
+      "id": 28,
+      "name": "get nested memory",
+      "toolName": "get_memory",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 29,
+      "name": "get missing key",
+      "toolName": "get_memory",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
+    },
+    {
+      "id": 30,
+      "name": "basic adversarial review",
+      "toolName": "adversarial_review",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
+    },
+    {
+      "id": 31,
+      "name": "adversarial review — plan text",
+      "toolName": "adversarial_review",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 32,
+      "name": "adversarial review — diff text",
+      "toolName": "adversarial_review",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 33,
+      "name": "auto-implement dry run",
+      "toolName": "auto_implement_plan",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
+    },
+    {
+      "id": 34,
+      "name": "auto-implement apply",
+      "toolName": "auto_implement_plan",
+      "status": "PASS",
+      "durationMs": 303,
+      "error": null
+    },
+    {
+      "id": 35,
+      "name": "file actually changed",
+      "toolName": "auto_implement_plan",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 36,
+      "name": "auto-implement with bad find (no match)",
+      "toolName": "auto_implement_plan",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
+    },
+    {
+      "id": 37,
+      "name": "nonexistent file errors",
+      "toolName": "auto_implement_plan",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 38,
+      "name": "scrape research url (example.com)",
+      "toolName": "scrape_research_url",
+      "status": "PASS",
+      "durationMs": 119,
+      "error": null
+    },
+    {
+      "id": 39,
+      "name": "scrape with save=true",
+      "toolName": "scrape_research_url",
+      "status": "PASS",
+      "durationMs": 38,
+      "error": null
+    },
+    {
+      "id": 40,
+      "name": "scrape bad url (should error)",
+      "toolName": "scrape_research_url",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 41,
+      "name": "register a dynamic tool",
+      "toolName": "register_tool",
+      "status": "PASS",
+      "durationMs": 10,
+      "error": null
+    },
+    {
+      "id": 42,
+      "name": "call registered dynamic tool",
+      "toolName": "test_dynamic_tool",
+      "status": "PASS",
+      "durationMs": 5,
+      "error": null
+    },
+    {
+      "id": 43,
+      "name": "duplicate rejected",
+      "toolName": "register_tool",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 44,
+      "name": "bad syntax rejected",
+      "toolName": "register_tool",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 45,
+      "name": "unregister dynamic tool",
+      "toolName": "unregister_tool",
+      "status": "PASS",
+      "durationMs": 8,
+      "error": null
+    },
+    {
+      "id": 46,
+      "name": "unregistered tool fails",
+      "toolName": "unregister_tool",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 47,
+      "name": "core tool protected",
+      "toolName": "unregister_tool",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 48,
+      "name": "linear 2-node graph",
+      "toolName": "execute_dependency_graph",
+      "status": "PASS",
+      "durationMs": 7,
+      "error": null
+    },
+    {
+      "id": 49,
+      "name": "parallel 2-node graph (no edges)",
+      "toolName": "execute_dependency_graph",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
+    },
+    {
+      "id": 50,
+      "name": "diamond graph (a→b, a→c, b→d, c→d)",
+      "toolName": "execute_dependency_graph",
+      "status": "PASS",
+      "durationMs": 7,
+      "error": null
+    },
+    {
+      "id": 51,
+      "name": "cycle detection (a→b, b→a)",
+      "toolName": "execute_dependency_graph",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 52,
+      "name": "stopOnError=true halts on fail",
+      "toolName": "execute_dependency_graph",
+      "status": "PASS",
+      "durationMs": 6,
+      "error": null
+    },
+    {
+      "id": 53,
+      "name": "load skill pack",
+      "toolName": "load_skill_pack",
+      "status": "PASS",
+      "durationMs": 12,
+      "error": null
+    },
+    {
+      "id": 54,
+      "name": "call sp_greet from skill pack",
+      "toolName": "sp_greet",
+      "status": "PASS",
+      "durationMs": 3,
+      "error": null
+    },
+    {
+      "id": 55,
+      "name": "call sp_add from skill pack",
+      "toolName": "sp_add",
+      "status": "PASS",
+      "durationMs": 3,
+      "error": null
+    },
+    {
+      "id": 56,
+      "name": "list loaded skill packs",
+      "toolName": "list_loaded_skill_packs",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 57,
+      "name": "duplicate pack rejected",
+      "toolName": "load_skill_pack",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 58,
+      "name": "unload skill pack",
+      "toolName": "unload_skill_pack",
+      "status": "PASS",
+      "durationMs": 8,
+      "error": null
+    },
+    {
+      "id": 59,
+      "name": "nonexistent pack errors",
+      "toolName": "unload_skill_pack",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 60,
+      "name": "list available servers",
+      "toolName": "list_available_servers",
+      "status": "PASS",
+      "durationMs": 178,
+      "error": null
+    },
+    {
+      "id": 61,
+      "name": "list available servers (with health check)",
+      "toolName": "list_available_servers",
+      "status": "PASS",
+      "durationMs": 169,
+      "error": null
+    },
+    {
+      "id": 62,
+      "name": "delegate to self (get_memory)",
+      "toolName": "delegate_to_server",
+      "status": "PASS",
+      "durationMs": 11,
+      "error": null
+    },
+    {
+      "id": 63,
+      "name": "bad server errors",
+      "toolName": "delegate_to_server",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 64,
+      "name": "spawn child server",
+      "toolName": "spawn_child_server",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 65,
+      "name": "list available servers (child running)",
+      "toolName": "list_available_servers",
+      "status": "PASS",
+      "durationMs": 181,
+      "error": null
+    },
+    {
+      "id": 66,
+      "name": "stop child server",
+      "toolName": "stop_child_server",
+      "status": "PASS",
+      "durationMs": 4,
+      "error": null
+    },
+    {
+      "id": 67,
+      "name": "bad server stop errors",
+      "toolName": "stop_child_server",
+      "status": "PASS",
+      "durationMs": 0,
+      "error": null
+    },
+    {
+      "id": 68,
+      "name": "evaluate sprint output",
+      "toolName": "evaluate_sprint_output",
+      "status": "PASS",
+      "durationMs": 9,
+      "error": null
+    },
+    {
+      "id": 69,
+      "name": "synthesize sprint outputs",
+      "toolName": "synthesize_sprint_outputs",
+      "status": "PASS",
+      "durationMs": 8,
+      "error": null
     }
-  ]
+  ],
+  "summary": {
+    "total": 69,
+    "passed": 69,
+    "failed": 0,
+    "skipped": 0,
+    "passRate": 100
+  }
 }
