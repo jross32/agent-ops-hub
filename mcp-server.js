@@ -837,6 +837,20 @@ const TOOLS = [
       required: ['serverPathA'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'auto_remediate_drift',
+    description: 'Automatically apply targeted fixes for common drift conditions detected by drift_detection_check: stash uncommitted changes, run npm install for missing deps, fetch/pull for remote divergence. Safe by default — uses dryRun mode unless explicitly disabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoPath:   { type: 'string', description: 'Absolute path to the repo to remediate' },
+        driftTypes: { type: 'array', items: { type: 'string' }, description: 'List of drift types to fix: "uncommitted_changes", "missing_deps", "remote_behind". Fixes all detected if omitted.' },
+        dryRun:     { type: 'boolean', description: 'If true (default), describe what would be done without executing. Set to false to apply.' }
+      },
+      required: ['repoPath'],
+      additionalProperties: false
+    }
   }
 ];
 
@@ -1101,6 +1115,8 @@ async function runTool(name, args) {
       return toolDependencyGraph(args);
     case 'compare_server_capabilities':
       return compareServerCapabilities(args);
+    case 'auto_remediate_drift':
+      return autoRemediateDrift(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -3693,6 +3709,102 @@ function regressionRootCauseAnalysis(args) {
     stackTrace: stackLines,
     failedTestNames: testNames.slice(0, 20),
     recommendation: topCause.hint
+  };
+}
+
+async function autoRemediateDrift(args) {
+  const repoPath = normalizeFsPath(args.repoPath);
+  const dryRun   = args.dryRun !== false; // default true
+  const requested = Array.isArray(args.driftTypes) && args.driftTypes.length > 0
+    ? new Set(args.driftTypes)
+    : null; // null = fix all detected
+
+  const actions = [];
+  const applied = [];
+  const errors  = [];
+
+  // --- Detect: uncommitted changes ---
+  let hasUncommitted = false;
+  try {
+    const status = execSync('git status --porcelain', { cwd: repoPath, encoding: 'utf8', timeout: 10000 });
+    hasUncommitted = status.trim().length > 0;
+  } catch (e) {
+    errors.push({ type: 'detect_uncommitted', error: e.message });
+  }
+
+  if (hasUncommitted && (!requested || requested.has('uncommitted_changes'))) {
+    const action = { type: 'uncommitted_changes', command: 'git stash push -m "auto-remediate-drift"', cwd: repoPath };
+    actions.push(action);
+    if (!dryRun) {
+      try {
+        const out = execSync(action.command, { cwd: repoPath, encoding: 'utf8', timeout: 15000 });
+        applied.push({ ...action, output: out.trim() });
+      } catch (e) {
+        errors.push({ type: 'uncommitted_changes', error: e.message });
+      }
+    }
+  }
+
+  // --- Detect: missing deps (node_modules absent or out of sync) ---
+  let missingDeps = false;
+  const nmPath = path.join(repoPath, 'node_modules');
+  const pkgPath = path.join(repoPath, 'package.json');
+  if (fs.existsSync(pkgPath) && !fs.existsSync(nmPath)) {
+    missingDeps = true;
+  } else if (fs.existsSync(pkgPath) && fs.existsSync(nmPath)) {
+    // Check if package.json is newer than node_modules
+    const pkgStat = fs.statSync(pkgPath);
+    const nmStat  = fs.statSync(nmPath);
+    if (pkgStat.mtimeMs > nmStat.mtimeMs) missingDeps = true;
+  }
+
+  if (missingDeps && (!requested || requested.has('missing_deps'))) {
+    const action = { type: 'missing_deps', command: 'npm install --prefer-offline', cwd: repoPath };
+    actions.push(action);
+    if (!dryRun) {
+      try {
+        const out = execSync(action.command, { cwd: repoPath, encoding: 'utf8', timeout: 60000 });
+        applied.push({ ...action, output: out.trim().slice(0, 500) });
+      } catch (e) {
+        errors.push({ type: 'missing_deps', error: e.message });
+      }
+    }
+  }
+
+  // --- Detect: remote behind (local branch behind origin) ---
+  let remoteBehind = false;
+  try {
+    execSync('git fetch --quiet', { cwd: repoPath, encoding: 'utf8', timeout: 20000 });
+    const behind = execSync('git rev-list HEAD..@{u} --count', { cwd: repoPath, encoding: 'utf8', timeout: 10000 });
+    remoteBehind = parseInt(behind.trim(), 10) > 0;
+  } catch (e) {
+    // Not behind or no upstream — skip silently
+  }
+
+  if (remoteBehind && (!requested || requested.has('remote_behind'))) {
+    const action = { type: 'remote_behind', command: 'git pull --ff-only', cwd: repoPath };
+    actions.push(action);
+    if (!dryRun) {
+      try {
+        const out = execSync(action.command, { cwd: repoPath, encoding: 'utf8', timeout: 30000 });
+        applied.push({ ...action, output: out.trim() });
+      } catch (e) {
+        errors.push({ type: 'remote_behind', error: e.message });
+      }
+    }
+  }
+
+  return {
+    repoPath,
+    dryRun,
+    driftDetected: {
+      uncommitted_changes: hasUncommitted,
+      missing_deps: missingDeps,
+      remote_behind: remoteBehind
+    },
+    plannedActions: actions,
+    appliedActions: dryRun ? [] : applied,
+    errors
   };
 }
 
