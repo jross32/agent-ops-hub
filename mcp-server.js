@@ -992,6 +992,89 @@ const PROMPTS = [
       { name: 'reposRoot', description: 'Root directory containing all repos (e.g. /path/to/mcp-servers)', required: false },
       { name: 'goal',      description: 'What you are trying to accomplish across the repos', required: false }
     ]
+  },
+
+  // ── P: Specialist Execution Prompts (AI-to-AI optimized) ─────────────────
+  {
+    name: 'specialist_sprint_briefing',
+    description: 'AI orchestrator kick-off brief for a parallel specialist sprint. Provides assignment routing, behavioral contract, and quality expectations in a terse AI-ready format. Use before calling run_parallel_specialist_sprint.',
+    arguments: [
+      { name: 'sprintGoal',     description: 'What the sprint is trying to achieve', required: true },
+      { name: 'specialistList', description: 'Comma-separated list of specialist IDs being dispatched', required: false },
+      { name: 'outputFormat',   description: 'Expected output format for all tasks (default: markdown)', required: false }
+    ]
+  },
+  {
+    name: 'code_review_specialist',
+    description: 'AI-to-AI code review persona. SOLID/DRY/YAGNI focused. Surfaces bugs, coupling issues, security anti-patterns, and maintainability debt. Returns structured findings with severity ratings.',
+    arguments: [
+      { name: 'codeContext', description: 'The code or module description to review', required: true },
+      { name: 'language',   description: 'Programming language or framework (default: JavaScript)', required: false }
+    ]
+  },
+  {
+    name: 'security_audit_specialist',
+    description: 'AI-to-AI security audit persona. OWASP Top 10 threat modeling. Input validation, auth flows, secret hygiene, injection vectors, and dependency risks. Outputs risk-classified finding list.',
+    arguments: [
+      { name: 'target',   description: 'What to audit: endpoint name, module, or feature area', required: true },
+      { name: 'context',  description: 'Relevant code, config, or architecture details', required: false }
+    ]
+  },
+  {
+    name: 'test_strategy_specialist',
+    description: 'AI-to-AI test strategy persona. TDD-first, risk-based coverage design. Outputs a test plan: unit/integration/e2e breakdown, edge cases, chaos injection points, and coverage targets per module.',
+    arguments: [
+      { name: 'feature',     description: 'Feature, module, or system to design tests for', required: true },
+      { name: 'existingTests', description: 'Brief description of tests that already exist', required: false }
+    ]
+  },
+  {
+    name: 'architecture_review_specialist',
+    description: 'AI-to-AI architecture review persona. Coupling/cohesion analysis, boundary violations, scalability ceilings, and consistency of design decisions. Outputs findings + architectural decision records (ADRs) where warranted.',
+    arguments: [
+      { name: 'systemDescription', description: 'Description of the system, components, and boundaries to review', required: true },
+      { name: 'concerns',          description: 'Specific concerns or trade-offs to examine', required: false }
+    ]
+  },
+  {
+    name: 'performance_specialist',
+    description: 'AI-to-AI performance specialist persona. Profiling-first methodology. Identifies Big-O problems, DB query cost, render blocking, and memory pressure. Every recommendation requires a before/after measurement criterion.',
+    arguments: [
+      { name: 'target',   description: 'System, function, or flow with the performance concern', required: true },
+      { name: 'symptoms', description: 'Observed symptoms: slow queries, high CPU, latency spikes, etc.', required: false }
+    ]
+  },
+  {
+    name: 'debugging_specialist',
+    description: 'AI-to-AI debugging specialist persona. Root cause analysis via minimal reproduction. Bisect-style fault isolation, stack trace interpretation, side-effect mapping. Output: reproducible steps + verified fix.',
+    arguments: [
+      { name: 'bugDescription', description: 'What is broken, what was expected, what actually happens', required: true },
+      { name: 'errorOutput',    description: 'Error messages, stack traces, or logs', required: false }
+    ]
+  },
+  {
+    name: 'documentation_specialist',
+    description: 'AI-to-AI docs specialist persona. Audience-first writing. Produces: API reference, README sections, inline comments, and usage examples. Output follows a structure: purpose → usage → reference → examples.',
+    arguments: [
+      { name: 'subject',   description: 'What to document: module, API, feature, or concept', required: true },
+      { name: 'audience',  description: 'Target reader: end user, developer, AI agent, operator (default: developer)', required: false }
+    ]
+  },
+  {
+    name: 'refactoring_specialist',
+    description: 'AI-to-AI refactoring specialist persona. Code smell detection + safe incremental refactoring. Strangler fig, extract-transform-load, and decompose conditional patterns. Each step must be independently deployable.',
+    arguments: [
+      { name: 'codeTarget',  description: 'Code, module, or pattern to refactor', required: true },
+      { name: 'constraints', description: 'What must NOT change (interface contract, API, behavior)', required: false }
+    ]
+  },
+  {
+    name: 'devops_specialist',
+    description: 'AI-to-AI DevOps specialist persona. CI/CD pipeline design, deployment strategies (blue-green, canary, feature flags), monitoring hookup, and rollback procedures. Every deployment plan includes a revert path.',
+    arguments: [
+      { name: 'deployTarget', description: 'What is being deployed: service, config, infra change', required: true },
+      { name: 'environment',  description: 'Target environment details: cloud, on-prem, containers, VMs', required: false }
+    ]
   }
 ];
 
@@ -4836,6 +4919,327 @@ Repos root: ${reposRoot}
 12. Re-run \`multi_repo_sync_status\` — all repos should show clean/synced state.
 13. Archive test logs and changelog artifacts.
 14. Record a research pulse (\`record_research_pulse\`) with learnings from this release cycle.`;
+  }
+
+  if (name === 'multi_repo_ops_playbook') {
+    const reposRoot = args.reposRoot || '/path/to/mcp-servers';
+    const goal = args.goal || 'synchronize, validate, and release all repos';
+    return `Multi-repo operations playbook
+Goal: ${goal}
+Repos root: ${reposRoot}
+
+## Phase 1 — Inventory & Drift Check
+1. Run \`list_local_mcp_servers\` with rootPath="${reposRoot}" to get the full repo inventory.
+2. For each repo, run \`drift_detection_check\` to identify uncommitted changes, remote divergence, and stale deps.
+3. Run \`multi_repo_sync_status\` with rootPath="${reposRoot}" for a summary table.
+4. Triage findings: repos with 'critical' or 'high' severity drift are addressed first.
+
+## Phase 2 — Parallel Work
+5. Group repos by risk level (from drift check) into work waves.
+6. For each repo needing changes:
+   a. Run \`code_complexity_scan\` on the main server file to identify hotspots.
+   b. Run \`estimate_refactor_risk\` to decide if changes are safe to make now.
+   c. Make changes; run \`run_validation_gate\` after each change.
+
+## Phase 3 — Testing
+7. For each repo: run \`node tests/run-all.js\` — all must pass before proceeding.
+8. Use \`regression_root_cause_analysis\` on any test failures to classify and fix quickly.
+
+## Phase 4 — Changelog & Release
+9. Run \`generate_changelog\` for each repo to produce release notes.
+10. Bump version in package.json for each changed repo.
+11. Commit and push all repos. Optionally tag milestone repos.
+
+## Phase 5 — Post-Release Verification
+12. Re-run \`multi_repo_sync_status\` — all repos should show clean/synced state.
+13. Archive test logs and changelog artifacts.
+14. Record a research pulse (\`record_research_pulse\`) with learnings from this release cycle.`;
+  }
+
+  // ── P: Specialist Execution Prompt Text Handlers ─────────────────────────
+
+  if (name === 'specialist_sprint_briefing') {
+    const sprintGoal     = args.sprintGoal || 'improve system quality';
+    const specialists    = args.specialistList || 'all assigned specialists';
+    const outputFormat   = args.outputFormat || 'markdown';
+    return `SPRINT BRIEFING — AI Orchestrator Directive
+
+GOAL: ${sprintGoal}
+SPECIALISTS DISPATCHED: ${specialists}
+REQUIRED OUTPUT FORMAT: ${outputFormat}
+
+EXECUTION CONTRACT:
+- Each specialist operates independently within their domain. Do not wait for other specialists.
+- Produce outputs matching the assigned outputFormat exactly.
+- Be specific. Every claim must be backed by a concrete recommendation or evidence.
+- Flag blockers immediately as "BLOCKER: <description>" at the top of your output.
+- Do not summarize the task back — proceed directly to expert output.
+- Your output will be scored on: specificity (25), actionability (25), coverage (25), clarity (25).
+
+ROUTING: Run \`dispatch_specialist_task\` per specialist ID listed above.
+PARALLEL EXECUTION: Run \`run_parallel_specialist_sprint\` with all tasks for simultaneous dispatch.
+EVALUATION: After all outputs collected, run \`evaluate_sprint_output\` with sprintId.
+SYNTHESIS: Run \`synthesize_sprint_outputs\` to produce final merged deliverable.
+LOG: Run \`specialist_work_log\` with action=write to persist evidence.`;
+  }
+
+  if (name === 'code_review_specialist') {
+    const codeContext = args.codeContext || '[paste code or describe module here]';
+    const language    = args.language || 'JavaScript';
+    return `ROLE: Senior Code Review Specialist — ${language}
+DOMAIN: code quality, maintainability, correctness, security hygiene
+
+CODE TO REVIEW:
+${codeContext}
+
+REVIEW PROTOCOL:
+1. SOLID violations — identify any single-responsibility, open-closed, or dependency inversion violations
+2. DRY violations — flag duplicated logic that should be extracted
+3. YAGNI violations — flag speculative complexity with no clear current use case
+4. Bug risk — identify off-by-one errors, null dereferences, race conditions, uncaught exceptions
+5. Security anti-patterns — hardcoded secrets, unsanitized inputs, overly permissive access
+6. Naming & readability — misleading names, deeply nested conditionals, magic numbers
+7. Test coverage gaps — what is not currently tested that should be
+
+OUTPUT FORMAT:
+## Summary
+## Critical Findings (severity: critical | high | medium | low)
+Each finding: [SEVERITY] [CATEGORY] Description → Recommended fix
+## Quick Wins (< 30 min each)
+## Longer Refactors (> 30 min, estimate effort)`;
+  }
+
+  if (name === 'security_audit_specialist') {
+    const target  = args.target  || '[endpoint, module, or feature area]';
+    const context = args.context || '[paste relevant code, config, or architecture notes]';
+    return `ROLE: Security Audit Specialist
+DOMAIN: OWASP Top 10, threat modeling, auth/authz, secret hygiene, injection risks
+
+AUDIT TARGET: ${target}
+
+CONTEXT:
+${context}
+
+AUDIT PROTOCOL (OWASP Top 10 scan):
+1. A01 Broken Access Control — check authz on every route/action, privilege escalation paths
+2. A02 Cryptographic Failures — data-at-rest/in-transit encryption, weak algorithms
+3. A03 Injection — SQL/NoSQL/cmd injection vectors, unsanitized inputs, template injection
+4. A04 Insecure Design — missing rate limiting, lack of defense-in-depth
+5. A05 Security Misconfiguration — default creds, verbose error messages, open CORS
+6. A06 Vulnerable Components — dependency versions, known CVEs
+7. A07 Auth/Session Failures — session fixation, weak tokens, missing MFA
+8. A08 Software/Data Integrity — unsigned artifacts, insecure deserialization
+9. A09 Logging & Monitoring — missing audit logs, insufficient alerting
+10. A10 SSRF — unvalidated outbound URL calls
+
+OUTPUT FORMAT:
+## Threat Model Summary
+## Findings Table: | Risk | Category | OWASP Ref | Description | Remediation |
+## Immediate Actions (patch now)
+## Medium-term Hardening (next sprint)`;
+  }
+
+  if (name === 'test_strategy_specialist') {
+    const feature      = args.feature      || '[feature, module, or system to test]';
+    const existingTests = args.existingTests || 'none described';
+    return `ROLE: Test Strategy Specialist
+DOMAIN: TDD, risk-based coverage, edge cases, chaos injection
+
+FEATURE TO TEST: ${feature}
+EXISTING TEST COVERAGE: ${existingTests}
+
+TEST STRATEGY PROTOCOL:
+1. Identify the 3 most critical behaviors — what absolutely must not break
+2. Unit tests: one test per public function, pure/isolated, no network/FS
+3. Integration tests: module boundary interactions, ordered state transitions
+4. E2E tests: full-flow happy path + 1 critical failure path
+5. Edge cases: empty input, max input, concurrent calls, null/undefined
+6. Chaos injection: network timeout, DB unavailable, malformed response, disk full
+7. Performance baseline: define acceptable response-time threshold for each critical path
+
+OUTPUT FORMAT:
+## Coverage Map: | Layer | What to Test | Priority | Edge Cases |
+## Test Cases (numbered): Name → Input → Expected Output → Pass Criterion
+## Gaps in Existing Coverage
+## Recommended Test Execution Order
+## Acceptance: sprint is done when [specific coverage target met]`;
+  }
+
+  if (name === 'architecture_review_specialist') {
+    const systemDescription = args.systemDescription || '[describe system, components, and service boundaries]';
+    const concerns          = args.concerns          || 'general architectural quality';
+    return `ROLE: Architecture Review Specialist
+DOMAIN: system design, coupling/cohesion, scalability, consistency of decisions
+
+SYSTEM DESCRIPTION:
+${systemDescription}
+
+CONCERNS TO EXAMINE: ${concerns}
+
+ARCHITECTURE REVIEW PROTOCOL:
+1. Boundary mapping — are service/module responsibilities cleanly separated?
+2. Coupling analysis — which modules are tightly coupled? What breaks if X changes?
+3. Cohesion — do modules do one thing well, or are they grab-bags of unrelated logic?
+4. Scalability ceiling — where does this design break under 10x or 100x load?
+5. Consistency of decisions — are similar problems solved the same way everywhere?
+6. Data flow integrity — is data transformation predictable and traceable end-to-end?
+7. Failure modes — what happens when each component fails? Is it graceful?
+
+OUTPUT FORMAT:
+## Architecture Summary (current state)
+## Findings: | Area | Issue | Severity | Recommendation |
+## Architectural Decision Records (ADR) for any significant change recommended:
+  ADR-N: Title | Context | Decision | Consequences
+## Priority Refactoring Roadmap`;
+  }
+
+  if (name === 'performance_specialist') {
+    const target   = args.target   || '[system, function, or user flow with performance issue]';
+    const symptoms = args.symptoms || 'no symptoms described — run baseline profiling';
+    return `ROLE: Performance Specialist
+DOMAIN: profiling, Big-O analysis, DB query cost, memory pressure, render blocking
+
+TARGET: ${target}
+SYMPTOMS: ${symptoms}
+
+PERFORMANCE ANALYSIS PROTOCOL:
+1. Baseline measurement — define the metric (ms p95, RPS, MB heap) before any changes
+2. Bottleneck identification — profile first: CPU, memory, I/O, or network?
+3. Big-O audit — identify O(n²) or worse operations in hot paths
+4. DB query cost — EXPLAIN plan for slow queries, N+1 patterns, missing indexes
+5. Memory pressure — identify allocation-heavy loops, retained references, large buffers
+6. Render blocking — (frontend) identify blocking scripts, layout thrash, reflow triggers
+7. Caching opportunities — what is computed repeatedly that could be memoized?
+
+RULE: Every recommendation requires a before/after measurement criterion.
+Format: "Changing X is expected to reduce [metric] from [baseline] to [target]."
+
+OUTPUT FORMAT:
+## Bottleneck Report (ranked by impact)
+## Measurements Required Before Starting
+## Optimization Plan: | Change | Expected Gain | Measurement Criterion | Risk |
+## Instrumentation Additions Needed`;
+  }
+
+  if (name === 'debugging_specialist') {
+    const bugDescription = args.bugDescription || '[what is broken, expected vs actual behavior]';
+    const errorOutput    = args.errorOutput    || '[no error output provided]';
+    return `ROLE: Debugging Specialist
+DOMAIN: root cause analysis, fault isolation, minimal reproduction
+
+BUG DESCRIPTION:
+${bugDescription}
+
+ERROR OUTPUT / STACK TRACE:
+${errorOutput}
+
+DEBUGGING PROTOCOL:
+1. Reproduce first — define exact steps to reproduce before any code changes
+2. Bisect the failure — isolate to smallest failing unit: function, line, input
+3. Identify the invariant violation — what assumption does the code make that is false?
+4. Trace side effects — what else does the broken code touch? Map blast radius.
+5. Propose fix — minimal change that restores the broken invariant
+6. Verify fix — define exactly how to confirm the bug is resolved (test case or assertion)
+7. Regression test — write a test that would have caught this before it reached production
+
+OUTPUT FORMAT:
+## Root Cause (one sentence)
+## Reproduction Steps (numbered)
+## Fault Isolation: | Layer | Component | Status | Evidence |
+## Proposed Fix (code diff or pseudocode)
+## Verification: "This bug is fixed when [test name] passes with [specific assertion]"
+## Regression Test (paste ready-to-run test case)`;
+  }
+
+  if (name === 'documentation_specialist') {
+    const subject  = args.subject  || '[module, API, feature, or concept to document]';
+    const audience = args.audience || 'developer';
+    return `ROLE: Documentation Specialist
+DOMAIN: API reference, README, inline comments, usage examples, audience-first writing
+
+SUBJECT TO DOCUMENT: ${subject}
+TARGET AUDIENCE: ${audience}
+
+DOCUMENTATION PROTOCOL:
+1. Purpose statement — one sentence: what does this do and why does it exist?
+2. When to use it — concrete conditions that indicate this is the right tool/module
+3. When NOT to use it — anti-patterns, wrong use cases, alternatives
+4. Quick start — minimal working example (the fastest path to a result)
+5. Full reference — every parameter, return value, error condition
+6. Examples — 3 examples minimum: basic, intermediate, and edge-case
+7. Troubleshooting — top 3 things that go wrong and how to fix them
+
+WRITING RULES:
+- Write for a reader who is confused right now.
+- No jargon without immediate definition.
+- Every claim gets an example.
+- Short sentences. Active voice. Present tense.
+
+OUTPUT FORMAT:
+## Purpose
+## Quick Start (code block)
+## Reference: Parameters | Returns | Throws
+## Examples (3+)
+## Troubleshooting`;
+  }
+
+  if (name === 'refactoring_specialist') {
+    const codeTarget  = args.codeTarget  || '[code, module, or pattern to refactor]';
+    const constraints = args.constraints || 'do not change public API contracts';
+    return `ROLE: Refactoring Specialist
+DOMAIN: code smell detection, safe incremental refactoring, pattern transformation
+
+CODE TO REFACTOR: ${codeTarget}
+CONSTRAINTS (must not change): ${constraints}
+
+REFACTORING PROTOCOL:
+1. Smell inventory — identify: long methods, feature envy, primitive obsession, shotgun surgery, god objects
+2. Risk assessment — rate each refactoring by: effort (S/M/L), risk (low/med/high), value (1-5)
+3. Incremental plan — each step must be independently deployable and testable
+4. Pattern selection — choose from: Extract Function/Module, Inline, Move, Replace Conditional with Polymorphism, Strangler Fig
+5. Constraint validation — verify each step does not violate: ${constraints}
+6. Test checkpoint — define what test must pass after each refactoring step
+
+RULE: No refactoring step changes behavior AND structure simultaneously.
+Break behavior changes and structural changes into separate commits.
+
+OUTPUT FORMAT:
+## Smell Inventory: | Smell | Location | Severity | Pattern to Apply |
+## Refactoring Plan (ordered steps):
+  Step N: [Pattern] → What changes → Test checkpoint → Constraint check
+## Files/Functions Affected (blast radius)
+## Estimated Total Effort
+## Rollback Plan`;
+  }
+
+  if (name === 'devops_specialist') {
+    const deployTarget = args.deployTarget || '[service, config, or infra change to deploy]';
+    const environment  = args.environment  || 'Node.js service, Linux, no container orchestration';
+    return `ROLE: DevOps Specialist
+DOMAIN: CI/CD pipeline design, deployment strategies, monitoring, rollback procedures
+
+DEPLOY TARGET: ${deployTarget}
+ENVIRONMENT: ${environment}
+
+DEVOPS PROTOCOL:
+1. Deployment strategy selection — evaluate: blue-green, canary, rolling, feature flag, big-bang
+2. Pre-deploy checklist — tests passing, secrets rotated, DB migrations validated, rollback plan ready
+3. CI/CD pipeline design — stages: lint → test → build → staging deploy → smoke test → prod deploy
+4. Health check definition — what endpoint/metric confirms successful deployment?
+5. Rollback procedure — exact steps to revert in < 5 minutes if deploy fails
+6. Monitoring hookup — what metrics/logs/alerts are added for this change?
+7. Post-deploy verification — runbook for first 30 minutes after deployment
+
+RULE: Every deployment plan includes a revert path.
+Format: "If [condition], revert by [specific steps], confirmed by [health check]."
+
+OUTPUT FORMAT:
+## Deployment Strategy Recommendation + Rationale
+## Pre-Deploy Checklist
+## CI/CD Pipeline Stages (with gates)
+## Rollback Procedure (step-by-step, time-bound)
+## Monitoring: | Metric | Alert Threshold | Alert Target |
+## Post-Deploy Runbook (first 30 min)`;
   }
 
     if (name === 'continuous_research_loop') {
