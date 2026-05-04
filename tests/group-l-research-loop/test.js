@@ -45,12 +45,26 @@ async function run(context) {
   assert(promptText.includes('research_improvement_ideas'), 'prompt should mention research_improvement_ideas');
   assert(promptText.includes('record_research_pulse'), 'prompt should mention record_research_pulse');
 
+  const cycleRes = await context.client.callTool('run_autonomous_improvement_cycle', {
+    goal: 'Improve MCP workflow speed and quality with specialist pods',
+    urls: ['https://playwright.dev/docs/intro'],
+    keywords: ['workflow', 'parallel', 'quality', 'automation'],
+    maxIdeas: 4,
+    sprintDays: 10,
+    maxParallelPods: 2,
+  }, 40000);
+  assert(cycleRes.ok, 'run_autonomous_improvement_cycle call failed');
+  assert(cycleRes.json && cycleRes.json.executionPlan, 'cycle response missing executionPlan');
+  assert(cycleRes.json.assignments && Array.isArray(cycleRes.json.assignments.pods), 'cycle response missing assignments');
+  assert(cycleRes.json.schedule && Array.isArray(cycleRes.json.schedule.timeline), 'cycle response missing schedule');
+
   return {
-    notes: `research pulse scanned=${pulseRes.json.scanned}, ideas=${pulseRes.json.ideas.length}, persisted=${recordRes.json.outputPath}`,
+    notes: `research pulse scanned=${pulseRes.json.scanned}, ideas=${pulseRes.json.ideas.length}, persisted=${recordRes.json.outputPath}, cyclePods=${cycleRes.json.assignments.podCount}`,
     details: {
       scanned: pulseRes.json.scanned,
       ideas: pulseRes.json.ideas.length,
       outputPath: recordRes.json.outputPath,
+      cyclePods: cycleRes.json.assignments.podCount,
     },
   };
 }

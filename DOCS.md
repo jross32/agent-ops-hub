@@ -1,6 +1,6 @@
 # agent-ops-hub — AI Tool Reference (DOCS.md)
 
-Version: **0.3.0** | Port: **11200** (HTTP) + stdio | Tools: **29** | Prompts: **5**
+Version: **0.5.0** | Port: **11200** (HTTP) + stdio | Tools: **33** | Prompts: **6**
 
 > **For AI agents:** This is your primary orchestration server. Start here to plan tasks, validate work, compare server capabilities, track roadmaps, and analyze test artifacts. Use the prompts to get structured guidance before starting complex workflows.
 
@@ -19,12 +19,16 @@ Version: **0.3.0** | Port: **11200** (HTTP) + stdio | Tools: **29** | Prompts: *
 | Track project roadmap tasks | `roadmap_tracker` |
 | Build a 40-role specialist team plan | `plan_specialist_assignments` |
 | Run recurring web intel pulse | `research_improvement_ideas` |
+| Execute full autonomous improvement cycle | `run_autonomous_improvement_cycle` |
+| Generate visual image assets | `generate_svg_image` |
+| Analyze image metadata and dimensions | `analyze_image_file` |
+| Analyze video metadata with ffprobe fallback | `analyze_video_file` |
 | Check JS file syntax quality | `code_quality_gate` |
 | Get workflow guidance (prompt) | Prompt: `agent_ops_workflow` |
 
 ---
 
-## All 29 Tools
+## All 33 Tools
 
 ### Orchestration & Intelligence
 
@@ -233,6 +237,34 @@ Persist a research pulse snapshot and return suggested next run time.
 ```
 Returns: `{ outputPath, cadenceMinutes, nextSuggestedRunAt, topIdeaCount }`
 
+#### `run_autonomous_improvement_cycle`
+Run one chained autonomous cycle: research pulse -> task plan -> specialist assignments -> collaboration schedule.
+```json
+{ "goal": "Improve MCP server velocity and quality", "maxIdeas": 5, "sprintDays": 14, "maxParallelPods": 3 }
+```
+Returns: `{ pulseSummary, executionPlan, assignments, schedule }`
+
+#### `generate_svg_image`
+Generate a clean SVG image for docs, UI mocks, and automation artifacts.
+```json
+{ "outputPath": "C:/tmp/agent-card.svg", "width": 1280, "height": 720, "title": "Agent Ops", "subtitle": "Generated asset" }
+```
+Returns: `{ created, outputPath, width, height, bytes }`
+
+#### `analyze_image_file`
+Analyze image format, dimensions, size, and checksum.
+```json
+{ "filePath": "C:/tmp/agent-card.svg" }
+```
+Returns: `{ format, width, height, sizeBytes, modifiedAt, sha256 }`
+
+#### `analyze_video_file`
+Analyze video metadata; uses ffprobe when available and returns fallback metadata otherwise.
+```json
+{ "filePath": "C:/tmp/demo.mp4", "timeoutMs": 15000 }
+```
+Returns: `{ analysisMode, ffprobeAvailable, durationSec?, video?, audioTrackCount?, sizeBytes }`
+
 ---
 
 ### Release & Changelog
@@ -253,7 +285,7 @@ Returns: `{ version, date, commitCount, outputPath, notes }`
 
 ---
 
-## 5 Prompts
+## 6 Prompts
 
 ### `agent_ops_workflow`
 Get step-by-step guidance for using agent-ops-hub to orchestrate a complex goal.
@@ -279,6 +311,12 @@ Get an operational playbook for nonstop improvement with recurring web research 
 Arguments: goal (optional), cadenceMinutes (optional)
 ```
 
+### `media_toolchain_blueprint`
+Get a practical media workflow blueprint for image generation and image/video analysis.
+```
+Arguments: goal (optional)
+```
+
 ### `release_prep_checklist`
 Full 10-step release preparation checklist: tests, changelog, version bump, tag, push.
 ```
@@ -302,6 +340,6 @@ POST http://127.0.0.1:11200/mcp     → same as stdio JSON-RPC; body: { jsonrpc,
 cd agent-ops-hub
 npm install
 node mcp-server.js        # stdio mode
-node tests/run-all.js     # run all 12 test groups
+node tests/run-all.js     # run all 13 test groups
 node --check mcp-server.js # syntax check
 ```

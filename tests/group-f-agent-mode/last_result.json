@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-04T03:37:20.404Z",
-  "runStamp": "2026-05-03_233713",
+  "timestamp": "2026-05-04T03:43:20.828Z",
+  "runStamp": "2026-05-03_234314",
   "testFile": "group-f-agent-mode/test.js",
   "id": "group-f-agent-mode",
   "status": "pass",
-  "durationMs": 2480,
-  "notes": "preflight=100, avgBenchmarkMs=689",
+  "durationMs": 3167,
+  "notes": "preflight=100, avgBenchmarkMs=1109",
   "details": {
     "readinessScore": 100,
     "benchmark": {
-      "avgDurationMs": 689,
-      "minDurationMs": 677,
-      "maxDurationMs": 700
+      "avgDurationMs": 1109,
+      "minDurationMs": 1034,
+      "maxDurationMs": 1184
     }
   }
 }

@@ -537,6 +537,65 @@ const TOOLS = [
     }
   },
   {
+    name: 'run_autonomous_improvement_cycle',
+    description: 'Run a full improvement cycle: web pulse -> task plan -> specialist assignments -> collaboration schedule',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', description: 'Top-level improvement goal' },
+        urls: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 20 },
+        keywords: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 50 },
+        maxIdeas: { type: 'number', minimum: 1, maximum: 30, description: 'How many top ideas to use for planning (default 5)' },
+        sprintDays: { type: 'number', minimum: 3, maximum: 60, description: 'Schedule length in days (default 14)' },
+        maxParallelPods: { type: 'number', minimum: 1, maximum: 10, description: 'Concurrent pods per wave (default 3)' }
+      },
+      required: ['goal'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'generate_svg_image',
+    description: 'Generate a clean SVG image asset (banner/card/placeholder) for docs, UI mocks, or reports',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        outputPath: { type: 'string', description: 'Output SVG file path (optional)' },
+        width: { type: 'number', minimum: 64, maximum: 4096, description: 'Image width (default 1280)' },
+        height: { type: 'number', minimum: 64, maximum: 4096, description: 'Image height (default 720)' },
+        title: { type: 'string', description: 'Primary title text rendered in the image' },
+        subtitle: { type: 'string', description: 'Secondary subtitle text' },
+        bgStart: { type: 'string', description: 'Gradient start color (default #0f172a)' },
+        bgEnd: { type: 'string', description: 'Gradient end color (default #1d4ed8)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'analyze_image_file',
+    description: 'Analyze an image file and return format, dimensions, size, hash, and metadata',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Absolute path to an image file (png/jpg/gif/bmp/webp/svg)' }
+      },
+      required: ['filePath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'analyze_video_file',
+    description: 'Analyze a video file using ffprobe when available, with graceful fallback metadata when ffprobe is missing',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Absolute path to a video file' },
+        timeoutMs: { type: 'number', minimum: 1000, maximum: 120000 }
+      },
+      required: ['filePath'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'validate_json_schema',
     description: 'Validate a JSON object against a JSON Schema definition and return a structured pass/fail report with detailed errors',
     inputSchema: {
@@ -580,6 +639,13 @@ const PROMPTS = [
     arguments: [
       { name: 'goal', description: 'What system should be continuously improved', required: false },
       { name: 'cadenceMinutes', description: 'Research pulse cadence in minutes', required: false }
+    ]
+  },
+  {
+    name: 'media_toolchain_blueprint',
+    description: 'Practical blueprint for using built-in media tools to generate images and analyze image/video assets in coding workflows',
+    arguments: [
+      { name: 'goal', description: 'Media workflow goal (UI mocks, QA evidence, video inspection)', required: false }
     ]
   },
   {
@@ -636,7 +702,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.3.0'
+        version: '0.5.0'
       },
       capabilities: {
         tools: {},
@@ -741,6 +807,14 @@ async function runTool(name, args) {
       return researchImprovementIdeas(args);
     case 'record_research_pulse':
       return recordResearchPulse(args);
+    case 'run_autonomous_improvement_cycle':
+      return runAutonomousImprovementCycle(args);
+    case 'generate_svg_image':
+      return generateSvgImage(args);
+    case 'analyze_image_file':
+      return analyzeImageFile(args);
+    case 'analyze_video_file':
+      return analyzeVideoFile(args);
     case 'validate_json_schema':
       return validateJsonSchema(args);
     default:
@@ -1445,7 +1519,7 @@ function sendResult(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
 
-// ── New tool implementations (v0.3.0) ────────────────────────────────────
+// ── New tool implementations (v0.5.0) ────────────────────────────────────
 
 function scanToolCoverage(args) {
   const serverDir = normalizeFsPath(args.serverDir);
@@ -2146,6 +2220,211 @@ function recordResearchPulse(args) {
   };
 }
 
+async function runAutonomousImprovementCycle(args) {
+  const goal = String(args.goal || '').trim();
+  if (!goal) throw new Error('goal is required');
+
+  const maxIdeas = Number.isFinite(args.maxIdeas) ? Math.floor(args.maxIdeas) : 5;
+  const sprintDays = Number.isFinite(args.sprintDays) ? Math.floor(args.sprintDays) : 14;
+  const maxParallelPods = Number.isFinite(args.maxParallelPods) ? Math.floor(args.maxParallelPods) : 3;
+
+  const pulse = await researchImprovementIdeas({
+    urls: args.urls,
+    keywords: args.keywords,
+    topIdeas: Math.max(maxIdeas, 8)
+  });
+
+  const topActions = pulse.ideas.slice(0, maxIdeas).map((idea) => idea.action);
+  const planningText = [goal, ...topActions].join('. ');
+  const plan = agentTaskPlanner({ task: planningText, context: 'autonomous-improvement-cycle', maxSteps: 12 });
+
+  const workstreams = pulse.ideas.slice(0, maxIdeas).map((idea) => idea.title);
+  const assignments = planSpecialistAssignments({
+    goal,
+    workstreams,
+    maxAgentsPerWorkstream: 4,
+    includeCrossReview: true
+  });
+
+  const schedule = buildCollaborationSchedule({
+    plan: assignments,
+    sprintDays,
+    maxParallelPods
+  });
+
+  return {
+    goal,
+    generatedAt: new Date().toISOString(),
+    pulseSummary: {
+      scanned: pulse.scanned,
+      ideas: pulse.ideas.length,
+      topRecommendations: pulse.recommendations.slice(0, maxIdeas)
+    },
+    executionPlan: plan,
+    assignments,
+    schedule
+  };
+}
+
+function generateSvgImage(args) {
+  const width = Number.isFinite(args.width) ? Math.floor(args.width) : 1280;
+  const height = Number.isFinite(args.height) ? Math.floor(args.height) : 720;
+  const title = String(args.title || 'Agent Ops Visual').trim();
+  const subtitle = String(args.subtitle || 'Generated by generate_svg_image').trim();
+  const bgStart = String(args.bgStart || '#0f172a').trim();
+  const bgEnd = String(args.bgEnd || '#1d4ed8').trim();
+
+  const outputPath = normalizeFsPath(args.outputPath || path.join(__dirname, 'artifacts', 'images', `image-${toStamp(new Date())}.svg`));
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+
+  const safeTitle = escapeXml(title);
+  const safeSubtitle = escapeXml(subtitle);
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${safeTitle}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${bgStart}" />
+      <stop offset="100%" stop-color="${bgEnd}" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  <rect width="${width}" height="${height}" fill="url(#bg)" />
+  <rect x="${Math.floor(width * 0.07)}" y="${Math.floor(height * 0.2)}" width="${Math.floor(width * 0.86)}" height="${Math.floor(height * 0.56)}" rx="28" fill="#ffffff" fill-opacity="0.12" filter="url(#shadow)" />
+  <text x="50%" y="46%" text-anchor="middle" fill="#f8fafc" font-size="${Math.max(28, Math.floor(width / 20))}" font-family="Segoe UI, Arial, sans-serif" font-weight="700">${safeTitle}</text>
+  <text x="50%" y="56%" text-anchor="middle" fill="#cbd5e1" font-size="${Math.max(14, Math.floor(width / 48))}" font-family="Segoe UI, Arial, sans-serif">${safeSubtitle}</text>
+</svg>`;
+
+  fs.writeFileSync(outputPath, svg, 'utf8');
+  const bytes = Buffer.byteLength(svg, 'utf8');
+
+  return { created: true, outputPath, width, height, bytes };
+}
+
+function analyzeImageFile(args) {
+  const filePath = normalizeFsPath(args.filePath);
+  if (!fs.existsSync(filePath)) throw new Error(`Image file not found: ${filePath}`);
+
+  const stat = fs.statSync(filePath);
+  const buf = fs.readFileSync(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const hash = sha256(buf);
+
+  let format = 'unknown';
+  let width = null;
+  let height = null;
+
+  if (ext === '.svg' || isLikelySvg(buf)) {
+    format = 'svg';
+    const txt = buf.toString('utf8');
+    const parsed = parseSvgDimensions(txt);
+    width = parsed.width;
+    height = parsed.height;
+  } else if (buf.length >= 24 && buf.slice(0, 8).toString('hex') === '89504e470d0a1a0a') {
+    format = 'png';
+    width = buf.readUInt32BE(16);
+    height = buf.readUInt32BE(20);
+  } else if (buf.length >= 10 && (buf.slice(0, 6).toString('ascii') === 'GIF89a' || buf.slice(0, 6).toString('ascii') === 'GIF87a')) {
+    format = 'gif';
+    width = buf.readUInt16LE(6);
+    height = buf.readUInt16LE(8);
+  } else if (buf.length >= 30 && buf.slice(0, 2).toString('ascii') === 'BM') {
+    format = 'bmp';
+    width = buf.readInt32LE(18);
+    height = Math.abs(buf.readInt32LE(22));
+  } else if (isJpeg(buf)) {
+    format = 'jpeg';
+    const dim = parseJpegDimensions(buf);
+    width = dim.width;
+    height = dim.height;
+  } else if (isWebp(buf)) {
+    format = 'webp';
+    const dim = parseWebpDimensions(buf);
+    width = dim.width;
+    height = dim.height;
+  }
+
+  return {
+    filePath,
+    format,
+    width,
+    height,
+    sizeBytes: stat.size,
+    modifiedAt: stat.mtime.toISOString(),
+    sha256: hash
+  };
+}
+
+async function analyzeVideoFile(args) {
+  const filePath = normalizeFsPath(args.filePath);
+  if (!fs.existsSync(filePath)) throw new Error(`Video file not found: ${filePath}`);
+
+  const timeoutMs = Number.isFinite(args.timeoutMs) ? args.timeoutMs : 20000;
+  const stat = fs.statSync(filePath);
+
+  const probeCheck = await runShellCommand('ffprobe -version', process.cwd(), Math.min(5000, timeoutMs));
+  const ffprobeAvailable = probeCheck.exitCode === 0;
+
+  if (!ffprobeAvailable) {
+    return {
+      filePath,
+      analysisMode: 'fallback',
+      ffprobeAvailable: false,
+      extension: path.extname(filePath).toLowerCase(),
+      sizeBytes: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+      note: 'ffprobe not found in PATH; install ffmpeg/ffprobe for deep metadata.'
+    };
+  }
+
+  const probeCmd = `ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`;
+  const probe = await runShellCommand(probeCmd, process.cwd(), timeoutMs);
+  if (probe.exitCode !== 0) {
+    return {
+      filePath,
+      analysisMode: 'ffprobe_error',
+      ffprobeAvailable: true,
+      sizeBytes: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+      error: clip(probe.stderr, 400)
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(probe.stdout || '{}');
+  } catch (_err) {
+    parsed = {};
+  }
+
+  const streams = Array.isArray(parsed.streams) ? parsed.streams : [];
+  const videoStream = streams.find((s) => s.codec_type === 'video') || null;
+  const audioStreams = streams.filter((s) => s.codec_type === 'audio');
+  const format = parsed.format || {};
+
+  return {
+    filePath,
+    analysisMode: 'ffprobe',
+    ffprobeAvailable: true,
+    sizeBytes: stat.size,
+    modifiedAt: stat.mtime.toISOString(),
+    durationSec: safeNumber(format.duration),
+    bitrate: safeNumber(format.bit_rate),
+    container: format.format_name || null,
+    video: videoStream
+      ? {
+          codec: videoStream.codec_name || null,
+          width: videoStream.width || null,
+          height: videoStream.height || null,
+          fps: normalizeFps(videoStream.avg_frame_rate || videoStream.r_frame_rate || null)
+        }
+      : null,
+    audioTrackCount: audioStreams.length
+  };
+}
+
 function inferWorkstreamsFromGoal(goal) {
   const lower = String(goal || '').toLowerCase();
   const streams = [];
@@ -2192,6 +2471,92 @@ function suggestSuccessCriteria(domain) {
     product: ['Scope aligned to outcomes', 'Milestones tracked', 'Dependencies resolved']
   };
   return map[domain] || map.product;
+}
+
+function isLikelySvg(buf) {
+  const sample = buf.slice(0, 400).toString('utf8').toLowerCase();
+  return sample.includes('<svg');
+}
+
+function parseSvgDimensions(text) {
+  const widthMatch = text.match(/\bwidth\s*=\s*"([0-9.]+)(px)?"/i);
+  const heightMatch = text.match(/\bheight\s*=\s*"([0-9.]+)(px)?"/i);
+  if (widthMatch && heightMatch) {
+    return { width: Math.round(Number(widthMatch[1])), height: Math.round(Number(heightMatch[1])) };
+  }
+
+  const vb = text.match(/\bviewBox\s*=\s*"([0-9.\s-]+)"/i);
+  if (vb) {
+    const parts = vb[1].trim().split(/\s+/).map((n) => Number(n));
+    if (parts.length === 4 && Number.isFinite(parts[2]) && Number.isFinite(parts[3])) {
+      return { width: Math.round(parts[2]), height: Math.round(parts[3]) };
+    }
+  }
+
+  return { width: null, height: null };
+}
+
+function isJpeg(buf) {
+  return buf.length >= 4 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+}
+
+function parseJpegDimensions(buf) {
+  let offset = 2;
+  while (offset + 9 < buf.length) {
+    if (buf[offset] !== 0xff) break;
+    const marker = buf[offset + 1];
+    const len = buf.readUInt16BE(offset + 2);
+    const sof = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (sof && offset + 8 < buf.length) {
+      const height = buf.readUInt16BE(offset + 5);
+      const width = buf.readUInt16BE(offset + 7);
+      return { width, height };
+    }
+    offset += 2 + len;
+  }
+  return { width: null, height: null };
+}
+
+function isWebp(buf) {
+  return buf.length >= 16 && buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP';
+}
+
+function parseWebpDimensions(buf) {
+  const fourCC = buf.slice(12, 16).toString('ascii');
+  if (fourCC === 'VP8X' && buf.length >= 30) {
+    const w = 1 + buf.readUIntLE(24, 3);
+    const h = 1 + buf.readUIntLE(27, 3);
+    return { width: w, height: h };
+  }
+  return { width: null, height: null };
+}
+
+function sha256(buf) {
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+function safeNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeFps(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const parts = raw.split('/').map((n) => Number(n));
+  if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && parts[1] !== 0) {
+    return Math.round((parts[0] / parts[1]) * 1000) / 1000;
+  }
+  return safeNumber(raw);
+}
+
+function escapeXml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function compressText(text, maxChars) {
@@ -2435,6 +2800,27 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
   This loop keeps your system in nonstop autonomous improvement mode while retaining traceable decisions and stable quality.`;
     }
 
+  if (name === 'media_toolchain_blueprint') {
+    const goal = args.goal || 'generate and analyze media for development workflows';
+    return `Media toolchain blueprint for: ${goal}
+
+  1. Generate visual assets quickly:
+    - Use \`generate_svg_image\` to create banners, placeholders, and report cards for docs/UI mocks.
+
+  2. Validate image artifacts:
+    - Use \`analyze_image_file\` to verify format, dimensions, and checksum before publishing.
+
+  3. Inspect video assets:
+    - Use \`analyze_video_file\` for duration/codec/fps metadata when ffprobe is available.
+    - If ffprobe is missing, use fallback metadata and install ffmpeg for deeper analysis.
+
+  4. Integrate with engineering workflow:
+    - Attach generated visuals to release notes and QA artifacts.
+    - Run image/video analysis inside validation gates for deterministic media checks.
+
+  This gives you native media generation + analysis in your MCP stack so future app projects can automate visual artifacts and media QA.`;
+  }
+
   return `Unknown prompt: ${name}`;
 }
 
@@ -2451,7 +2837,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.3.0',
+      version: '0.5.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT
