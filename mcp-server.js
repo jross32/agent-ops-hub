@@ -76,6 +76,30 @@ const SPECIALIST_AGENT_CATALOG = [
   { id: 'customer_support_analyst', domain: 'operations', title: 'Customer Support Analyst', strengths: ['feedback', 'issue-patterns', 'triage-data'] }
 ];
 
+// ── Live Dashboard SSE Infrastructure ────────────────────────────────────────
+const sseClients     = new Set();
+const eventRingBuffer = [];
+const EVENT_RING_MAX  = 200;
+let toolCallCount     = 0;
+const serverStartTime = Date.now();
+
+function emitHub(type, data) {
+  const evt     = { type, data: { ...data, ts: Date.now() } };
+  eventRingBuffer.push(evt);
+  if (eventRingBuffer.length > EVENT_RING_MAX) eventRingBuffer.shift();
+  const payload = `event: ${type}\ndata: ${JSON.stringify(evt.data)}\n\n`;
+  for (const client of Array.from(sseClients)) {
+    try { client.write(payload); } catch (_) { sseClients.delete(client); }
+  }
+}
+
+function buildArgsSummary(toolName, args) {
+  if (toolName === 'run_parallel_specialist_sprint') return `${args.sprintName || '?'} (${(args.tasks || []).length} tasks)`;
+  if (toolName === 'evaluate_sprint_output')         return `${args.sprintId || '?'} (${(args.outputs || []).length} outputs)`;
+  if (toolName === 'dispatch_specialist_task')       return `${args.specialistId || '?'}: ${(args.taskTitle || '').slice(0, 40)}`;
+  return Object.keys(args).slice(0, 3).map((k) => `${k}=${JSON.stringify(args[k]).slice(0, 20)}`).join(', ');
+}
+
 const TOOLS = [
   {
     name: 'agent_mode_preflight',
@@ -1155,12 +1179,23 @@ async function handleMessage(message) {
       return sendError(id, -32602, 'Missing tool name');
     }
 
-    const result = await runTool(toolName, args);
+    toolCallCount++;
+    const _callStart    = Date.now();
+    const _argsSummary  = buildArgsSummary(toolName, args);
+    emitHub('tool_call', { toolName, argsSummary: _argsSummary, phase: 'start' });
+    let _toolResult;
+    try {
+      _toolResult = await runTool(toolName, args);
+    } catch (err) {
+      emitHub('tool_call', { toolName, phase: 'error', error: err.message, durationMs: Date.now() - _callStart });
+      throw err;
+    }
+    emitHub('tool_call', { toolName, phase: 'end', durationMs: Date.now() - _callStart });
     return sendResult(id, {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2)
+          text: JSON.stringify(_toolResult, null, 2)
         }
       ]
     });
@@ -3999,6 +4034,7 @@ async function runParallelSpecialistSprint(args) {
   if (tasks.length === 0) throw new Error('tasks array must not be empty');
 
   const sprintId = `sprint-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  emitHub('sprint_start', { sprintId, sprintName, taskCount: tasks.length });
 
   // Chunk tasks into batches of maxConcurrent for display ordering
   const batches = [];
@@ -4018,7 +4054,9 @@ async function runParallelSpecialistSprint(args) {
             taskContext:  task.taskContext,
             outputFormat: task.outputFormat || 'markdown'
           });
-          return { ...bundle, taskId: `${sprintId}-${dispatchedTasks.length + batch.indexOf(task)}`, status: 'dispatched' };
+          const _workerIdx = dispatchedTasks.length + batch.indexOf(task);
+          emitHub('worker_spawned', { sprintId, workerIdx: _workerIdx, specialistId: task.specialistId, taskTitle: task.taskTitle });
+          return { ...bundle, taskId: `${sprintId}-${_workerIdx}`, status: 'dispatched' };
         } catch (err) {
           return {
             specialistId: task.specialistId,
@@ -4035,6 +4073,7 @@ async function runParallelSpecialistSprint(args) {
 
   const dispatched = dispatchedTasks.filter((t) => t.status === 'dispatched').length;
   const errors     = dispatchedTasks.filter((t) => t.status === 'error').length;
+  emitHub('sprint_complete', { sprintId, sprintName, taskCount: tasks.length, dispatchedCount: dispatched, errorCount: errors });
 
   return {
     sprintId,
@@ -4152,6 +4191,7 @@ function evaluateSprintOutput(args) {
     ? `Adequate but improvable. ${failing.length} task(s) underperforming — review context depth and output format guidance.`
     : `Sprint quality needs attention (${overallScore}/100). Key issues: thin outputs, low actionability, or missing structure. Consider enriching taskContext or reviewing specialist assignments.`;
 
+  emitHub('evaluation_result', { sprintId, overallScore, grade: overallScore >= 85 ? 'A' : overallScore >= 70 ? 'B' : overallScore >= 55 ? 'C' : overallScore >= 40 ? 'D' : 'F', taskCount: outputs.length, recommendation });
   return {
     sprintId,
     evaluatedAt:    new Date().toISOString(),
@@ -4244,6 +4284,7 @@ function synthesizeSprintOutputs(args) {
     finalSummary = `Goal: ${synthesisGoal}\n\nContributing specialists: ${outputs.length} (domains: ${domainList})\nAction items: ${mergedActions.length} | Conflicts: ${conflicts.length}\n\nTop 10 prioritized actions:\n${mergedActions.slice(0, 10).map((a) => `${a.index}. [${a.domain}] ${a.text}`).join('\n')}`;
   }
 
+  emitHub('synthesis_complete', { synthesisGoal, totalActions: mergedActions.length, conflictCount: conflicts.length, specialistCount: outputs.length });
   return {
     synthesisGoal,
     format,
@@ -5371,15 +5412,54 @@ const httpServer = http.createServer((req, res) => {
 
   res.setHeader('Content-Type', 'application/json');
 
+  if (url === '/' && method === 'GET') {
+    const htmlPath = path.join(__dirname, 'public', 'dashboard.html');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.writeHead(200);
+    if (fs.existsSync(htmlPath)) {
+      res.end(fs.readFileSync(htmlPath, 'utf8'));
+    } else {
+      res.end('<h1>agent-ops-hub</h1><p>Dashboard not found. Create public/dashboard.html.</p>');
+    }
+    return;
+  }
+
+  if (url === '/stream' && method === 'GET') {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.writeHead(200);
+    // Replay ring buffer so new clients see recent history
+    for (const evt of eventRingBuffer) {
+      res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt.data)}\n\n`);
+    }
+    sseClients.add(res);
+    req.on('close', () => sseClients.delete(res));
+    const keepAlive = setInterval(() => {
+      try { res.write(': keep-alive\n\n'); } catch (_) { clearInterval(keepAlive); sseClients.delete(res); }
+    }, 20000);
+    return;
+  }
+
+  if (url === '/events/recent' && method === 'GET') {
+    res.writeHead(200);
+    res.end(JSON.stringify({ events: eventRingBuffer, count: eventRingBuffer.length }));
+    return;
+  }
+
   if (url === '/health' && method === 'GET') {
     res.writeHead(200);
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.8.0',
+      version: '0.9.2',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
-      port: HTTP_PORT
+      port: HTTP_PORT,
+      uptime: Math.round((Date.now() - serverStartTime) / 1000),
+      sseClients: sseClients.size,
+      toolCallCount
     }));
     return;
   }
@@ -5416,11 +5496,19 @@ const httpServer = http.createServer((req, res) => {
   }
 
   res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/health', '/mcp'] }));
+  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/', '/health', '/mcp', '/stream', '/events/recent'] }));
 });
 
 httpServer.listen(HTTP_PORT, '127.0.0.1', () => {
   process.stderr.write(`[agent-ops-hub] HTTP listening on http://127.0.0.1:${HTTP_PORT}\n`);
+  // Broadcast a ping every 5s so the dashboard can track uptime + call counts
+  setInterval(() => {
+    emitHub('ping', {
+      uptime:        Math.round((Date.now() - serverStartTime) / 1000),
+      toolCallCount,
+      clientCount:   sseClients.size,
+    });
+  }, 5000);
 });
 
 httpServer.on('error', (e) => {

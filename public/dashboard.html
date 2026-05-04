@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>agent-ops-hub — Live Dashboard</title>
+  <style>
+    :root {
+      --bg:         #0d1117;
+      --surface:    #161b22;
+      --surface2:   #21262d;
+      --surface3:   #2d333b;
+      --border:     #30363d;
+      --border2:    #444c56;
+      --text:       #e6edf3;
+      --dim:        #8b949e;
+      --accent:     #58a6ff;
+      --accent-bg:  rgba(88,166,255,0.12);
+      --green:      #3fb950;
+      --green-bg:   rgba(63,185,80,0.12);
+      --orange:     #d29922;
+      --orange-bg:  rgba(210,153,34,0.12);
+      --red:        #f85149;
+      --red-bg:     rgba(248,81,73,0.12);
+      --purple:     #bc8cff;
+      --purple-bg:  rgba(188,140,255,0.12);
+      --pink:       #ff7b72;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    /* ── TOPBAR ─────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .topbar-left  { display: flex; align-items: center; gap: 10px; }
+    .topbar-mid   { display: flex; align-items: center; gap: 22px; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+
+    .logo { font-size: 15px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo-hex { color: var(--accent); }
+
+    .conn-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--dim); flex-shrink: 0;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .conn-dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); animation: dot-pulse 2.5s ease-in-out infinite; }
+    .conn-dot.err { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+
+    .conn-label { font-size: 11px; color: var(--dim); }
+
+    .stat { font-size: 12px; color: var(--dim); }
+    .stat b { color: var(--text); font-weight: 600; }
+
+    .pill {
+      font-size: 11px; font-weight: 700;
+      padding: 2px 9px; border-radius: 99px;
+      border: 1px solid var(--border);
+    }
+    .pill-ver { color: var(--accent); border-color: var(--accent); }
+    .pill-port { color: var(--dim); }
+
+    /* ── LAYOUT ─────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr 300px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .col {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+    .col:last-child { border-right: none; }
+
+    .col-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 14px 9px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .col-title {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--dim);
+    }
+
+    /* ── SPRINT FEED ─────────────────────────────────── */
+    .sprint-col { background: var(--surface); }
+    .sprint-scroll { flex: 1; overflow-y: auto; padding: 8px; }
+
+    .sprint-empty { color: var(--dim); font-size: 12px; padding: 24px 12px; text-align: center; opacity: 0.7; }
+
+    .sprint-card {
+      padding: 10px 11px; border-radius: 8px; margin-bottom: 5px;
+      background: var(--surface2); border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      animation: fade-up 0.25s ease-out;
+    }
+    .sprint-card:hover  { border-color: var(--border2); background: var(--surface3); }
+    .sprint-card.active { border-color: var(--accent);  background: var(--accent-bg); }
+
+    .sc-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+    .sc-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+    .sc-score { font-size: 17px; font-weight: 800; color: var(--text); margin: 2px 0; }
+    .sc-meta  { font-size: 10px; color: var(--dim); }
+
+    .grade-badge {
+      font-size: 10px; font-weight: 800;
+      padding: 1px 6px; border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .gb-A { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green);  }
+    .gb-B { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); }
+    .gb-C { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange); }
+    .gb-D { background: var(--red-bg);    color: var(--pink);   border: 1px solid var(--pink);   }
+    .gb-F { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red);    }
+
+    /* ── WORKER CENTER ───────────────────────────────── */
+    .worker-col { background: var(--bg); }
+    .worker-badge { font-size: 10px; color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+
+    .worker-scroll { flex: 1; overflow-y: auto; padding: 14px; }
+    .worker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+      gap: 11px;
+    }
+
+    .worker-ph {
+      grid-column: 1/-1;
+      text-align: center; padding: 60px 20px; color: var(--dim);
+    }
+    .worker-ph-icon { font-size: 36px; margin-bottom: 14px; opacity: 0.25; }
+    .worker-ph-text { font-size: 12px; opacity: 0.6; line-height: 1.6; }
+
+    /* Worker card */
+    .wcard {
+      border-radius: 10px; padding: 13px 13px 11px;
+      background: var(--surface); border: 1px solid var(--border);
+      position: relative; overflow: hidden;
+      animation: card-in 0.3s ease-out;
+      transition: border-color 0.4s, box-shadow 0.4s;
+    }
+    .wcard.spawning { border-color: var(--accent); box-shadow: 0 0 0 0 var(--accent-bg); animation: card-in 0.3s ease-out, pulse-border 1.8s ease-in-out infinite; }
+    .wcard.working  { border-color: var(--accent); box-shadow: 0 0 14px var(--accent-bg); animation: card-in 0.3s ease-out, glow-accent 2s ease-in-out infinite; }
+    .wcard.done     { border-color: var(--border2); }
+    .wcard.scored-A { border-color: var(--green);  box-shadow: 0 0 10px var(--green-bg);  }
+    .wcard.scored-B { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-bg); }
+    .wcard.scored-C { border-color: var(--orange); box-shadow: 0 0 10px var(--orange-bg); }
+    .wcard.scored-D,
+    .wcard.scored-F { border-color: var(--red);    box-shadow: 0 0 10px var(--red-bg);    }
+
+    .wcard-emoji-wrap { text-align: center; margin-bottom: 9px; position: relative; display: inline-block; width: 100%; }
+    .wcard-emoji { font-size: 26px; display: inline-block; position: relative; }
+    .spin-ring {
+      position: absolute; top: -5px; right: -5px; bottom: -5px; left: -5px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: transparent;
+      pointer-events: none;
+    }
+    .wcard.working  .spin-ring { border-top-color: var(--accent); animation: spin 1.2s linear infinite; }
+    .wcard.scored-A .spin-ring { border-top-color: var(--green); }
+    .wcard.scored-B .spin-ring { border-top-color: var(--accent); }
+
+    .wcard-id   { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .wcard-task { font-size: 11px; color: var(--text); line-height: 1.45; margin-bottom: 8px; min-height: 30px; }
+
+    .wcard-status { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+    .wstatus-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--dim); }
+    .wcard.spawning .wstatus-dot { background: var(--accent); animation: dot-pulse 1.0s infinite; }
+    .wcard.working  .wstatus-dot { background: var(--accent); animation: dot-pulse 0.6s infinite; }
+    .wcard.scored-A .wstatus-dot { background: var(--green); }
+    .wcard.scored-B .wstatus-dot { background: var(--accent); }
+    .wcard.scored-C .wstatus-dot { background: var(--orange); }
+    .wcard.scored-D .wstatus-dot,
+    .wcard.scored-F .wstatus-dot { background: var(--red); }
+
+    .wstatus-label { color: var(--dim); }
+    .wcard.working .wstatus-label { color: var(--accent); }
+
+    .thinking-dots { display: inline-flex; gap: 2px; }
+    .thinking-dots span { width: 3px; height: 3px; border-radius: 50%; background: var(--accent); animation: bounce 1.1s ease-in-out infinite; }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.18s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.36s; }
+
+    .wcard-score {
+      position: absolute; top: 9px; right: 9px;
+      font-size: 12px; font-weight: 800;
+      padding: 2px 6px; border-radius: 5px;
+      animation: score-pop 0.4s ease-out;
+    }
+    .ws-A { background: var(--green-bg);  color: var(--green);  }
+    .ws-B { background: var(--accent-bg); color: var(--accent); }
+    .ws-C { background: var(--orange-bg); color: var(--orange); }
+    .ws-D,
+    .ws-F { background: var(--red-bg);    color: var(--red);    }
+
+    /* Score bar */
+    .score-bar-section {
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      flex-shrink: 0;
+      display: none;
+    }
+    .score-bar-section.visible { display: flex; align-items: center; gap: 14px; }
+
+    .score-num { font-size: 36px; font-weight: 800; line-height: 1; }
+    .score-num.c-A { color: var(--green);  }
+    .score-num.c-B { color: var(--accent); }
+    .score-num.c-C { color: var(--orange); }
+    .score-num.c-D,
+    .score-num.c-F { color: var(--red);    }
+
+    .score-right { flex: 1; }
+    .score-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); margin-bottom: 5px; }
+    .score-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .score-fill  { height: 100%; border-radius: 3px; transition: width 1.2s ease-out; width: 0%; }
+    .sf-A { background: var(--green);  }
+    .sf-B { background: var(--accent); }
+    .sf-C { background: var(--orange); }
+    .sf-D,
+    .sf-F { background: var(--red);    }
+    .score-rec { font-size: 10px; color: var(--dim); margin-top: 5px; line-height: 1.5; }
+
+    /* ── EVENT LOG ───────────────────────────────────── */
+    .log-col { background: var(--surface); }
+    .log-scroll { flex: 1; overflow-y: auto; padding: 6px; }
+
+    .log-entry {
+      display: flex; align-items: flex-start; gap: 7px;
+      padding: 5px 8px; border-radius: 5px; margin-bottom: 1px;
+      font-size: 11px; line-height: 1.45;
+      animation: log-in 0.18s ease-out;
+    }
+    .log-entry:hover { background: var(--surface2); }
+    .log-icon { flex-shrink: 0; font-size: 12px; margin-top: 1px; }
+    .log-body { flex: 1; min-width: 0; }
+    .log-type { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 1px; }
+    .log-msg  { color: var(--dim); word-break: break-all; }
+    .log-ts   { font-size: 9px; color: var(--dim); flex-shrink: 0; opacity: 0.55; }
+
+    .lt-tool_call         .log-type { color: var(--dim); }
+    .lt-worker_spawned    .log-type { color: var(--accent); }
+    .lt-sprint_start      .log-type { color: var(--purple); }
+    .lt-sprint_complete   .log-type { color: var(--green); }
+    .lt-evaluation_result .log-type { color: var(--purple); }
+    .lt-synthesis_complete .log-type { color: var(--orange); }
+    .lt-system            .log-type { color: var(--green); }
+    .lt-error             .log-type { color: var(--red); }
+
+    .ai-status {
+      border-top: 1px solid var(--border);
+      padding: 8px 12px;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; color: var(--accent);
+      flex-shrink: 0; min-height: 34px;
+      transition: opacity 0.2s;
+    }
+    .ai-status.idle { opacity: 0; pointer-events: none; }
+    .ai-dots span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: bounce 1s ease-in-out infinite; }
+    .ai-dots { display: flex; gap: 3px; }
+    .ai-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .ai-dots span:nth-child(3) { animation-delay: 0.3s; }
+    .ai-tool { color: var(--dim); margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+
+    /* ── FOOTER ─────────────────────────────────────── */
+    .footer {
+      height: 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px;
+      background: var(--surface); border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--dim);
+      flex-shrink: 0;
+    }
+    .foot-conn { display: flex; align-items: center; gap: 6px; }
+    .foot-dot  { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
+    .foot-dot.on { background: var(--green); }
+
+    /* ── CLEAR BTN ───────────────────────────────────── */
+    .clear-btn {
+      font-size: 10px; color: var(--dim); background: none;
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 2px 7px; cursor: pointer; font-family: inherit;
+    }
+    .clear-btn:hover { color: var(--text); border-color: var(--border2); }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+    /* ── ANIMATIONS ──────────────────────────────────── */
+    @keyframes dot-pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
+    @keyframes glow-accent{ 0%,100%{box-shadow:0 0 8px var(--accent-bg)} 50%{box-shadow:0 0 22px rgba(88,166,255,.4)} }
+    @keyframes pulse-border{ 0%,100%{box-shadow:0 0 0 0 transparent} 50%{box-shadow:0 0 0 3px var(--accent-bg)} }
+    @keyframes spin        { to{transform:rotate(360deg)} }
+    @keyframes bounce      { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes card-in     { from{opacity:0;transform:translateY(10px) scale(0.96)} to{opacity:1;transform:none} }
+    @keyframes log-in      { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:none} }
+    @keyframes fade-up     { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+    @keyframes score-pop   { 0%{transform:scale(0.7);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo"><span class="logo-hex">⬡</span> agent-ops-hub</div>
+    <div class="conn-dot" id="conn-dot"></div>
+    <span class="conn-label" id="conn-label">Connecting…</span>
+  </div>
+  <div class="topbar-mid">
+    <span class="stat">🔧 <b id="stat-calls">0</b> calls</span>
+    <span class="stat">⚡ <b id="stat-sprints">0</b> sprints</span>
+    <span class="stat">⏱ <b id="stat-uptime">--</b></span>
+    <span class="stat">👥 <b id="stat-clients">1</b> viewer</span>
+  </div>
+  <div class="topbar-right">
+    <span class="pill pill-ver" id="version-pill">v?</span>
+    <span class="pill pill-port">:11200</span>
+  </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+
+  <!-- LEFT: Sprint Feed -->
+  <aside class="col sprint-col">
+    <div class="col-head">
+      <span class="col-title">Sprint Feed</span>
+      <span class="stat" id="sprint-total" style="font-size:10px"></span>
+    </div>
+    <div class="sprint-scroll" id="sprint-scroll">
+      <div class="sprint-empty" id="sprint-empty">No sprints yet — waiting for activity…</div>
+    </div>
+  </aside>
+
+  <!-- CENTER: Worker Grid -->
+  <main class="col worker-col">
+    <div class="col-head">
+      <span class="col-title">Active Workers</span>
+      <span class="worker-badge" id="active-badge"></span>
+    </div>
+    <div class="worker-scroll">
+      <div class="worker-grid" id="worker-grid">
+        <div class="worker-ph">
+          <div class="worker-ph-icon">⬡</div>
+          <div class="worker-ph-text">Waiting for a sprint to start…<br>Call run_parallel_specialist_sprint to see workers here.</div>
+        </div>
+      </div>
+    </div>
+    <div class="score-bar-section" id="score-section">
+      <div>
+        <div class="score-num" id="score-num">--</div>
+        <div style="font-size:9px;color:var(--dim);margin-top:2px;">overall score</div>
+      </div>
+      <div class="score-right">
+        <div class="score-meta">
+          <span id="score-tasks">--</span>
+          <span id="score-grade">--</span>
+        </div>
+        <div class="score-track"><div class="score-fill" id="score-fill"></div></div>
+        <div class="score-rec" id="score-rec"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT: Event Log -->
+  <aside class="col log-col">
+    <div class="col-head">
+      <span class="col-title">Live Events</span>
+      <button class="clear-btn" id="clear-btn">Clear</button>
+    </div>
+    <div class="log-scroll" id="log-scroll"></div>
+    <div class="ai-status idle" id="ai-status">
+      <div class="ai-dots"><span></span><span></span><span></span></div>
+      <span>AI processing</span>
+      <span class="ai-tool" id="ai-tool"></span>
+    </div>
+  </aside>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="foot-conn">
+    <div class="foot-dot" id="foot-dot"></div>
+    <span id="foot-status">Disconnected</span>
+  </div>
+  <span>http://127.0.0.1:11200</span>
+  <span id="foot-last">No events yet</span>
+</footer>
+
+<script>
+  // ── Specialist emoji map ──────────────────────────────────────────────────
+  const EMOJI_MAP = {
+    ux_ui:         '🎨', product_design: '🎨', design_system: '🖌️', accessibility: '♿',
+    frontend_perf: '⚡', visual_regress: '🔍', usability:     '👁️', interaction:    '🖱️',
+    brand:         '✨', mobile_resp:    '📱',
+    backend:       '🏗️', api_design:     '📡', database:      '🗄️', distributed:    '🔄',
+    reliability:   '🛡️', security:       '🔒', auth_identity:  '🔑', devops_release: '🚀',
+    qa_auto:       '🧪', test_strategy:  '📋',
+    bug_hunter:    '🐛', static_anal:    '🔬', perf_profil:    '📊', observability:  '📈',
+    data_eng:      '💾', ml_eng:         '🤖', prompt_eng:     '💬', mcp_protocol:   '🔌',
+    tooling_int:   '⚙️', docs_info:      '📚', technical_wr:  '✍️', developer_exp:  '🛠️',
+    build_system:  '🏭', ci_cd:          '🔁', incident:       '🚨', project_mg:     '📅',
+    scrum:         '🔃', business_anal:  '📊', growth:         '📈', customer_sup:   '💬',
+  };
+
+  function getEmoji(specialistId) {
+    if (!specialistId) return '👤';
+    const id = specialistId.toLowerCase();
+    for (const [k, v] of Object.entries(EMOJI_MAP)) {
+      if (id.includes(k.replace(/_/g, ''))) return v;
+    }
+    if (id.includes('ux') || id.includes('ui'))          return '🎨';
+    if (id.includes('backend') || id.includes('api'))    return '🏗️';
+    if (id.includes('security'))                         return '🔒';
+    if (id.includes('test') || id.includes('qa'))        return '🧪';
+    if (id.includes('data'))                             return '📊';
+    if (id.includes('perf'))                             return '⚡';
+    if (id.includes('doc') || id.includes('write'))      return '📝';
+    if (id.includes('deploy') || id.includes('devops'))  return '🚀';
+    if (id.includes('ai') || id.includes('ml'))          return '🤖';
+    return '👤';
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const S = {
+    connected: false,
+    calls: 0,
+    sprints: 0,
+    workers: {},        // workerId → { card, sprintId }
+    sprintWorkers: {},  // sprintId → [workerId,…]
+    activeSprint: null,
+    logCount: 0,
+    version: null,
+  };
+
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const connDot    = $('conn-dot');
+  const connLabel  = $('conn-label');
+  const statCalls  = $('stat-calls');
+  const statSprints = $('stat-sprints');
+  const statUptime = $('stat-uptime');
+  const statClients = $('stat-clients');
+  const versionPill = $('version-pill');
+  const sprintScroll = $('sprint-scroll');
+  const sprintEmpty  = $('sprint-empty');
+  const sprintTotal  = $('sprint-total');
+  const workerGrid  = $('worker-grid');
+  const activeBadge = $('active-badge');
+  const scoreSection = $('score-section');
+  const scoreNum  = $('score-num');
+  const scoreTasks = $('score-tasks');
+  const scoreGrade = $('score-grade');
+  const scoreFill  = $('score-fill');
+  const scoreRec   = $('score-rec');
+  const logScroll  = $('log-scroll');
+  const aiStatus   = $('ai-status');
+  const aiTool     = $('ai-tool');
+  const footDot    = $('foot-dot');
+  const footStatus = $('foot-status');
+  const footLast   = $('foot-last');
+
+  $('clear-btn').onclick = () => { logScroll.innerHTML = ''; S.logCount = 0; };
+
+  // ── Connection ────────────────────────────────────────────────────────────
+  let sse = null;
+  let reconnTimer = null;
+  const ALL_EVENTS = ['tool_call','worker_spawned','sprint_start','sprint_complete','evaluation_result','synthesis_complete','memory_op','loop_state','ping'];
+
+  function connect() {
+    if (sse) { try { sse.close(); } catch(_) {} sse = null; }
+    sse = new EventSource('/stream');
+
+    sse.onopen = () => {
+      setConn(true);
+      addLog('system', '🟢', 'Connected to live stream', 'Connected to agent-ops-hub SSE stream');
+    };
+    sse.onerror = () => {
+      setConn(false);
+      if (reconnTimer) clearTimeout(reconnTimer);
+      reconnTimer = setTimeout(connect, 3000);
+    };
+    for (const evt of ALL_EVENTS) {
+      sse.addEventListener(evt, (e) => {
+        let d; try { d = JSON.parse(e.data); } catch(_) { return; }
+        dispatch(evt, d);
+      });
+    }
+  }
+
+  function setConn(v) {
+    S.connected = v;
+    connDot.className  = 'conn-dot' + (v ? ' on' : ' err');
+    connLabel.textContent = v ? 'Connected' : 'Reconnecting…';
+    footDot.className  = 'foot-dot' + (v ? ' on' : '');
+    footStatus.textContent = v ? '● Connected' : '⚠ Reconnecting…';
+  }
+
+  // ── Event dispatcher ──────────────────────────────────────────────────────
+  function dispatch(type, d) {
+    footLast.textContent = 'Last: ' + new Date(d.ts || Date.now()).toLocaleTimeString();
+    switch (type) {
+      case 'tool_call':          onToolCall(d);         break;
+      case 'worker_spawned':     onWorkerSpawned(d);    break;
+      case 'sprint_start':       onSprintStart(d);      break;
+      case 'sprint_complete':    onSprintComplete(d);   break;
+      case 'evaluation_result':  onEvalResult(d);       break;
+      case 'synthesis_complete': onSynthesis(d);        break;
+      case 'ping':               onPing(d);             break;
+    }
+    if (type !== 'ping') logEvent(type, d);
+  }
+
+  // ── Handler: tool_call ────────────────────────────────────────────────────
+  function onToolCall(d) {
+    if (d.phase === 'start') {
+      S.calls++;
+      statCalls.textContent = S.calls;
+      aiStatus.classList.remove('idle');
+      aiTool.textContent = '— ' + d.toolName;
+    } else {
+      aiStatus.classList.add('idle');
+      aiTool.textContent = '';
+    }
+  }
+
+  // ── Handler: sprint_start ─────────────────────────────────────────────────
+  function onSprintStart(d) {
+    S.activeSprint = d.sprintId;
+    activeBadge.textContent = (d.sprintId || '').slice(-14);
+  }
+
+  // ── Handler: worker_spawned ───────────────────────────────────────────────
+  function onWorkerSpawned(d) {
+    // Remove placeholder on first worker
+    const ph = workerGrid.querySelector('.worker-ph');
+    if (ph) ph.remove();
+
+    const wid = `${d.sprintId}-${d.workerIdx}`;
+    if (!S.sprintWorkers[d.sprintId]) S.sprintWorkers[d.sprintId] = [];
+    S.sprintWorkers[d.sprintId].push(wid);
+    S.activeSprint = d.sprintId;
+    activeBadge.textContent = (d.sprintId || '').slice(-14);
+
+    const card = buildWorkerCard(wid, d);
+    S.workers[wid] = card;
+    workerGrid.appendChild(card);
+
+    // Transition: spawning → working after a staggered delay
+    setTimeout(() => {
+      card.classList.replace('spawning', 'working');
+      card.querySelector('.wstatus-label').textContent = 'working…';
+    }, 350 + d.workerIdx * 90);
+  }
+
+  function buildWorkerCard(wid, d) {
+    const card = document.createElement('div');
+    card.className = 'wcard spawning';
+    card.dataset.wid = wid;
+    const emoji  = getEmoji(d.specialistId || '');
+    const label  = (d.specialistId || 'worker').replace(/_/g, ' ');
+    const task   = (d.taskTitle || '').slice(0, 58);
+    card.innerHTML = `
+      <div class="wcard-emoji-wrap">
+        <span class="wcard-emoji">${emoji}<span class="spin-ring"></span></span>
+      </div>
+      <div class="wcard-id">${label}</div>
+      <div class="wcard-task">${task}</div>
+      <div class="wcard-status">
+        <span class="wstatus-dot"></span>
+        <span class="wstatus-label">spawning…</span>
+        <span class="thinking-dots"><span></span><span></span><span></span></span>
+      </div>`;
+    return card;
+  }
+
+  // ── Handler: sprint_complete ──────────────────────────────────────────────
+  function onSprintComplete(d) {
+    S.sprints++;
+    statSprints.textContent = S.sprints;
+
+    setTimeout(() => {
+      for (const wid of (S.sprintWorkers[d.sprintId] || [])) {
+        const c = S.workers[wid]; if (!c) continue;
+        c.classList.replace('working', 'done');
+        c.classList.remove('spawning');
+        const sl = c.querySelector('.wstatus-label'); if (sl) sl.textContent = 'dispatched';
+        const td = c.querySelector('.thinking-dots'); if (td) td.style.display = 'none';
+        const sr = c.querySelector('.spin-ring');    if (sr) sr.style.borderTopColor = 'transparent';
+      }
+    }, 1100);
+
+    ensureSprintCard(d);
+  }
+
+  // ── Handler: evaluation_result ────────────────────────────────────────────
+  function onEvalResult(d) {
+    const g = d.grade || 'C';
+    const sc = d.overallScore || 0;
+
+    // Score bar
+    scoreSection.classList.add('visible');
+    scoreNum.textContent = sc + '/100';
+    scoreNum.className   = 'score-num c-' + g;
+    scoreTasks.textContent = (d.taskCount || 0) + ' tasks evaluated';
+    scoreGrade.textContent = 'Grade ' + g;
+    scoreFill.className  = 'score-fill sf-' + g;
+    setTimeout(() => { scoreFill.style.width = sc + '%'; }, 50);
+    scoreRec.textContent = (d.recommendation || '').slice(0, 120);
+
+    // Color worker cards
+    for (const wid of (S.sprintWorkers[d.sprintId] || [])) {
+      const c = S.workers[wid]; if (!c) continue;
+      c.className = 'wcard scored-' + g;
+      const sl = c.querySelector('.wstatus-label');
+      if (sl) sl.textContent = sc + '/100';
+      const existing = c.querySelector('.wcard-score');
+      if (!existing) {
+        const badge = document.createElement('div');
+        badge.className = 'wcard-score ws-' + g;
+        badge.textContent = g;
+        c.appendChild(badge);
+      }
+    }
+
+    // Update sprint card
+    const sc_el = sprintScroll.querySelector(`[data-sid="${d.sprintId}"]`);
+    if (sc_el) {
+      const sb = sc_el.querySelector('.sc-score');
+      if (sb) sb.textContent = sc + '/100';
+      const gb = sc_el.querySelector('.grade-badge');
+      if (gb) { gb.textContent = g; gb.className = 'grade-badge gb-' + g; }
+    }
+  }
+
+  // ── Handler: synthesis_complete ───────────────────────────────────────────
+  function onSynthesis(d) {
+    // nothing extra — logged only
+  }
+
+  // ── Handler: ping ─────────────────────────────────────────────────────────
+  function onPing(d) {
+    if (d.uptime !== undefined) {
+      const s = d.uptime;
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+      statUptime.textContent = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${ss}s` : `${ss}s`;
+    }
+    if (d.toolCallCount !== undefined) {
+      S.calls = Math.max(S.calls, d.toolCallCount);
+      statCalls.textContent = S.calls;
+    }
+    if (d.clientCount !== undefined) {
+      statClients.textContent = d.clientCount;
+    }
+  }
+
+  // ── Sprint card helpers ───────────────────────────────────────────────────
+  function ensureSprintCard(d) {
+    if (sprintEmpty) sprintEmpty.style.display = 'none';
+    const existing = sprintScroll.querySelector(`[data-sid="${d.sprintId}"]`);
+    if (existing) return;
+
+    const card = document.createElement('div');
+    card.className = 'sprint-card active';
+    card.dataset.sid = d.sprintId;
+    const name = (d.sprintName || d.sprintId || '?').slice(0, 28);
+    const ts   = new Date(d.ts || Date.now()).toLocaleTimeString();
+    card.innerHTML = `
+      <div class="sc-row1">
+        <span class="sc-name">${name}</span>
+        <span class="grade-badge gb-B">?</span>
+      </div>
+      <div class="sc-score">--</div>
+      <div class="sc-meta">${d.taskCount || 0} tasks · ${ts}</div>`;
+
+    sprintScroll.querySelectorAll('.sprint-card').forEach(el => el.classList.remove('active'));
+    sprintScroll.prepend(card);
+    sprintTotal.textContent = '(' + sprintScroll.querySelectorAll('.sprint-card').length + ')';
+  }
+
+  // ── Event log ─────────────────────────────────────────────────────────────
+  const LOG_ICON = {
+    tool_call: '🔧', worker_spawned: '⚡', sprint_start: '🔵',
+    sprint_complete: '✅', evaluation_result: '📊', synthesis_complete: '🔗',
+    memory_op: '💾', loop_state: '🔄', system: '🟢', error: '❌',
+  };
+  const LOG_MSG = {
+    tool_call: (d) => d.phase === 'start'
+      ? `→ ${d.toolName}${d.argsSummary ? ' (' + d.argsSummary + ')' : ''}`
+      : `← ${d.toolName} ${d.phase}${d.durationMs ? ' ' + d.durationMs + 'ms' : ''}`,
+    worker_spawned:    (d) => `[${d.specialistId}] ${(d.taskTitle || '').slice(0, 50)}`,
+    sprint_start:      (d) => `${(d.sprintId||'').slice(-14)} · ${d.taskCount} tasks`,
+    sprint_complete:   (d) => `${(d.sprintId||'').slice(-14)} · ${d.dispatchedCount||0}/${d.taskCount} dispatched`,
+    evaluation_result: (d) => `score ${d.overallScore}/100 grade ${d.grade} · ${d.taskCount} tasks`,
+    synthesis_complete:(d) => `${d.totalActions} actions · ${d.conflictCount} conflicts · ${d.specialistCount} specialists`,
+    memory_op:         (d) => `${d.operation||'?'} ${d.key||''}`,
+    system:            (d) => d,
+  };
+
+  function logEvent(type, d) {
+    const msg = typeof LOG_MSG[type] === 'function' ? LOG_MSG[type](d) : JSON.stringify(d).slice(0, 80);
+    addLog(type, LOG_ICON[type] || '◆', type.replace(/_/g,' '), msg);
+  }
+
+  function addLog(type, icon, label, msg) {
+    const el = document.createElement('div');
+    el.className = `log-entry lt-${type}`;
+    const ts = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    el.innerHTML = `
+      <span class="log-icon">${icon}</span>
+      <div class="log-body">
+        <div class="log-type">${label}</div>
+        <div class="log-msg">${typeof msg === 'string' ? msg : JSON.stringify(msg)}</div>
+      </div>
+      <span class="log-ts">${ts}</span>`;
+    logScroll.insertBefore(el, logScroll.firstChild);
+    S.logCount++;
+    if (S.logCount > 250) {
+      const last = logScroll.lastChild;
+      if (last) { last.remove(); S.logCount--; }
+    }
+  }
+
+  // ── Fetch server info ─────────────────────────────────────────────────────
+  fetch('/health').then(r => r.json()).then(d => {
+    if (d.version) { S.version = d.version; versionPill.textContent = 'v' + d.version; }
+    if (d.uptime)  { onPing({ uptime: d.uptime }); }
+  }).catch(() => {});
+
+  // ── Start ─────────────────────────────────────────────────────────────────
+  connect();
+</script>
+</body>
+</html>
