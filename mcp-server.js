@@ -9,6 +9,7 @@ const { spawn } = require('child_process');
 const DEFAULT_MCP_ROOT = 'C:/Users/justi/mcp-servers';
 const DEFAULT_RUNBOOK_DIR = path.resolve(__dirname, 'artifacts', 'runbooks');
 const DEFAULT_RESEARCH_DIR = path.resolve(__dirname, 'artifacts', 'research-pulses');
+const DEFAULT_LOOP_STATE_DIR = path.resolve(__dirname, 'artifacts', 'loop-state');
 const DEFAULT_RESEARCH_URLS = [
   'https://modelcontextprotocol.io/',
   'https://github.blog/changelog/',
@@ -554,6 +555,51 @@ const TOOLS = [
     }
   },
   {
+    name: 'orchestrate_continuous_improvement_loop',
+    description: 'Run autonomous improvement cycles continuously with persisted state, checkpoints, and control flags',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', description: 'Loop objective that should be continuously improved' },
+        maxCycles: { type: 'number', minimum: 1, maximum: 500, description: 'How many cycles to execute for this invocation (default 3)' },
+        cadenceMinutes: { type: 'number', minimum: 5, maximum: 1440, description: 'Research pulse cadence between cycles (default 10)' },
+        stateDir: { type: 'string', description: 'Optional directory for loop state and cycle snapshots' },
+        waitForCadence: { type: 'boolean', description: 'If true, waits for next pulse time before each cycle (default false)' },
+        urls: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 20 },
+        keywords: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 50 }
+      },
+      required: ['goal'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'get_autonomous_loop_state',
+    description: 'Get persisted state for the continuous improvement loop and recent cycle snapshots',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stateDir: { type: 'string', description: 'Optional directory for loop state and cycle snapshots' },
+        includeRecentCycles: { type: 'boolean', description: 'Include recent cycle filenames (default true)' },
+        recentLimit: { type: 'number', minimum: 1, maximum: 100, description: 'How many recent cycles to include (default 10)' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'set_autonomous_loop_control',
+    description: 'Control the continuous improvement loop: pause, resume, or trigger an immediate pulse',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['pause', 'resume', 'trigger_now'], description: 'Control action to apply' },
+        stateDir: { type: 'string', description: 'Optional directory for loop state and cycle snapshots' },
+        reason: { type: 'string', description: 'Optional reason for pause/resume actions' }
+      },
+      required: ['action'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'generate_svg_image',
     description: 'Generate a clean SVG image asset (banner/card/placeholder) for docs, UI mocks, or reports',
     inputSchema: {
@@ -691,6 +737,13 @@ const PROMPTS = [
     ]
   },
   {
+    name: 'autonomous_loop_controller',
+    description: 'Operational playbook for nonstop auto-mode: loop orchestration, controls, checkpoints, and resume behavior',
+    arguments: [
+      { name: 'goal', description: 'Continuous improvement objective for the loop', required: false }
+    ]
+  },
+  {
     name: 'release_prep_checklist',
     description: 'Full release preparation checklist for an MCP server: tests, changelog, version bump, tag, and push',
     arguments: [
@@ -744,7 +797,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.6.0'
+        version: '0.7.0'
       },
       capabilities: {
         tools: {},
@@ -851,6 +904,12 @@ async function runTool(name, args) {
       return recordResearchPulse(args);
     case 'run_autonomous_improvement_cycle':
       return runAutonomousImprovementCycle(args);
+    case 'orchestrate_continuous_improvement_loop':
+      return orchestrateContinuousImprovementLoop(args);
+    case 'get_autonomous_loop_state':
+      return getAutonomousLoopState(args);
+    case 'set_autonomous_loop_control':
+      return setAutonomousLoopControl(args);
     case 'generate_svg_image':
       return generateSvgImage(args);
     case 'analyze_image_file':
@@ -2312,6 +2371,159 @@ async function runAutonomousImprovementCycle(args) {
   };
 }
 
+async function orchestrateContinuousImprovementLoop(args) {
+  const goal = String(args.goal || '').trim();
+  if (!goal) throw new Error('goal is required');
+
+  const stateDir = normalizeFsPath(args.stateDir || DEFAULT_LOOP_STATE_DIR);
+  const maxCycles = Number.isFinite(args.maxCycles) ? Math.floor(args.maxCycles) : 3;
+  const cadenceMinutes = Number.isFinite(args.cadenceMinutes) ? Math.floor(args.cadenceMinutes) : 10;
+  const waitForCadence = args.waitForCadence === true;
+
+  let state = readAutonomousLoopState(stateDir);
+  if (state.control === 'paused') {
+    return {
+      status: 'paused',
+      reason: state.pauseReason || 'loop is paused',
+      stateDir,
+      state
+    };
+  }
+
+  state.status = 'running';
+  state.goal = goal;
+  state.cadenceMinutes = cadenceMinutes;
+  state.lastStartedAt = new Date().toISOString();
+  writeAutonomousLoopState(stateDir, state);
+
+  const cycles = [];
+  for (let i = 0; i < maxCycles; i += 1) {
+    state = readAutonomousLoopState(stateDir);
+    if (state.control === 'paused') {
+      break;
+    }
+
+    const nowMs = Date.now();
+    const nextPulseMs = state.nextPulseAt ? Date.parse(state.nextPulseAt) : null;
+    const shouldWait = waitForCadence && !state.triggerNow && Number.isFinite(nextPulseMs) && nextPulseMs > nowMs;
+    if (shouldWait) {
+      await sleep(Math.min(nextPulseMs - nowMs, 120000));
+    }
+
+    const cycleNumber = Number.isFinite(state.totalCycles) ? state.totalCycles + 1 : 1;
+    const cycleStartedAt = new Date().toISOString();
+
+    const cycleResult = await runAutonomousImprovementCycle({
+      goal,
+      urls: args.urls,
+      keywords: args.keywords,
+      maxIdeas: 5,
+      sprintDays: 14,
+      maxParallelPods: 3
+    });
+
+    const pulse = await researchImprovementIdeas({
+      urls: args.urls,
+      keywords: args.keywords,
+      topIdeas: 12
+    });
+    const pulseSaved = recordResearchPulse({ pulse, outputDir: DEFAULT_RESEARCH_DIR, cadenceMinutes });
+
+    const cycleSnapshot = {
+      cycleNumber,
+      cycleStartedAt,
+      cycleCompletedAt: new Date().toISOString(),
+      goal,
+      result: cycleResult,
+      pulseSaved
+    };
+    const cyclePath = writeLoopCycleSnapshot(stateDir, cycleSnapshot);
+
+    state = readAutonomousLoopState(stateDir);
+    state.status = 'running';
+    state.control = state.control || 'running';
+    state.totalCycles = cycleNumber;
+    state.lastCyclePath = cyclePath;
+    state.lastCycleCompletedAt = cycleSnapshot.cycleCompletedAt;
+    state.nextPulseAt = new Date(Date.now() + cadenceMinutes * 60 * 1000).toISOString();
+    state.triggerNow = false;
+    writeAutonomousLoopState(stateDir, state);
+
+    cycles.push({
+      cycleNumber,
+      cyclePath,
+      ideas: cycleResult.pulseSummary.ideas,
+      nextPulseAt: state.nextPulseAt
+    });
+  }
+
+  state = readAutonomousLoopState(stateDir);
+  if (state.control !== 'paused') {
+    state.status = 'idle';
+    writeAutonomousLoopState(stateDir, state);
+  }
+
+  return {
+    status: state.control === 'paused' ? 'paused' : 'ok',
+    goal,
+    stateDir,
+    cyclesRun: cycles.length,
+    totalCycles: state.totalCycles || 0,
+    nextPulseAt: state.nextPulseAt || null,
+    cycles
+  };
+}
+
+function getAutonomousLoopState(args) {
+  const stateDir = normalizeFsPath(args.stateDir || DEFAULT_LOOP_STATE_DIR);
+  const includeRecentCycles = args.includeRecentCycles !== false;
+  const recentLimit = Number.isFinite(args.recentLimit) ? Math.floor(args.recentLimit) : 10;
+
+  const state = readAutonomousLoopState(stateDir);
+  const recentCycles = includeRecentCycles
+    ? listLoopCycleSnapshots(stateDir).slice(-recentLimit)
+    : [];
+
+  return {
+    stateDir,
+    state,
+    recentCycles,
+    snapshotCount: listLoopCycleSnapshots(stateDir).length
+  };
+}
+
+function setAutonomousLoopControl(args) {
+  const action = String(args.action || '').trim();
+  const stateDir = normalizeFsPath(args.stateDir || DEFAULT_LOOP_STATE_DIR);
+  const reason = String(args.reason || '').trim() || null;
+
+  const state = readAutonomousLoopState(stateDir);
+
+  if (action === 'pause') {
+    state.control = 'paused';
+    state.pauseReason = reason || 'manual pause';
+    state.status = 'paused';
+  } else if (action === 'resume') {
+    state.control = 'running';
+    state.pauseReason = null;
+    state.status = 'idle';
+  } else if (action === 'trigger_now') {
+    state.triggerNow = true;
+    state.nextPulseAt = new Date().toISOString();
+  } else {
+    throw new Error(`Unknown action: ${action}`);
+  }
+
+  state.updatedAt = new Date().toISOString();
+  writeAutonomousLoopState(stateDir, state);
+
+  return {
+    action,
+    stateDir,
+    state
+  };
+}
+
 function generateSvgImage(args) {
   const width = Number.isFinite(args.width) ? Math.floor(args.width) : 1280;
   const height = Number.isFinite(args.height) ? Math.floor(args.height) : 720;
@@ -2557,6 +2769,62 @@ function draftSkillPackManifest(args) {
   };
 
   return manifest;
+}
+
+function readAutonomousLoopState(stateDir) {
+  const filePath = path.join(stateDir, 'autonomous-loop-state.json');
+  if (!fs.existsSync(filePath)) {
+    return {
+      status: 'idle',
+      control: 'running',
+      totalCycles: 0,
+      triggerNow: false,
+      nextPulseAt: null,
+      pauseReason: null,
+      updatedAt: new Date().toISOString()
+    };
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (_err) {
+    return {
+      status: 'idle',
+      control: 'running',
+      totalCycles: 0,
+      triggerNow: false,
+      nextPulseAt: null,
+      pauseReason: 'state-parse-failure-recovered',
+      updatedAt: new Date().toISOString()
+    };
+  }
+}
+
+function writeAutonomousLoopState(stateDir, state) {
+  fs.mkdirSync(stateDir, { recursive: true });
+  const filePath = path.join(stateDir, 'autonomous-loop-state.json');
+  fs.writeFileSync(filePath, JSON.stringify(state, null, 2));
+  return filePath;
+}
+
+function writeLoopCycleSnapshot(stateDir, snapshot) {
+  const cyclesDir = path.join(stateDir, 'cycles');
+  fs.mkdirSync(cyclesDir, { recursive: true });
+  const filePath = path.join(cyclesDir, `cycle-${String(snapshot.cycleNumber).padStart(4, '0')}-${toStamp(new Date())}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
+  return filePath;
+}
+
+function listLoopCycleSnapshots(stateDir) {
+  const cyclesDir = path.join(stateDir, 'cycles');
+  if (!fs.existsSync(cyclesDir)) return [];
+  return safeReadDir(cyclesDir)
+    .filter((e) => e.isFile() && e.name.endsWith('.json'))
+    .map((e) => path.join(cyclesDir, e.name))
+    .sort();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function inferWorkstreamsFromGoal(goal) {
@@ -2955,6 +3223,31 @@ Key tools available: agent_mode_preflight, agent_task_planner, run_validation_ga
   This gives you native media generation + analysis in your MCP stack so future app projects can automate visual artifacts and media QA.`;
   }
 
+  if (name === 'autonomous_loop_controller') {
+    const goal = args.goal || 'continuous autonomous improvement without manual handoff';
+    return `Autonomous loop controller playbook for: ${goal}
+
+  1. Initialize and control loop state:
+    - Use \`set_autonomous_loop_control\` with action=resume to ensure loop is active.
+
+  2. Execute bounded continuous batches:
+    - Use \`orchestrate_continuous_improvement_loop\` with maxCycles per invocation.
+    - Persisted state carries forward cycle count and next pulse timing.
+
+  3. Monitor progress and artifacts:
+    - Use \`get_autonomous_loop_state\` to inspect status, cycle history, and queue health.
+
+  4. Keep cadence and control:
+    - Use cadenceMinutes for pulse scheduling.
+    - Use action=trigger_now to force immediate pulse.
+    - Use action=pause for safe interruption and action=resume to continue.
+
+  5. Rigor rules:
+    - Treat each cycle as checkpointed work unit.
+    - Never mark complete while loop is intended to continue.
+    - Only stop by explicit user interrupt or manual pause control.`;
+  }
+
     if (name === 'skill_pack_operating_model') {
      const goal = args.goal || 'rigorous specialist auto-coding at scale';
      return `Skill-pack operating model for: ${goal}
@@ -2995,7 +3288,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '0.6.0',
+      version: '0.7.0',
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT

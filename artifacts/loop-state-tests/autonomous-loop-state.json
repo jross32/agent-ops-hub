@@ -1,0 +1,14 @@
+{
+  "status": "paused",
+  "control": "paused",
+  "totalCycles": 2,
+  "triggerNow": true,
+  "nextPulseAt": "2026-05-04T03:57:16.419Z",
+  "pauseReason": "test-pause",
+  "updatedAt": "2026-05-04T03:57:16.419Z",
+  "goal": "Continuously improve MCP server quality and workflow speed",
+  "cadenceMinutes": 10,
+  "lastStartedAt": "2026-05-04T03:57:16.166Z",
+  "lastCyclePath": "C:\\Users\\justi\\mcp-servers\\agent-ops-hub\\artifacts\\loop-state-tests\\cycles\\cycle-0002-20260503_235716.json",
+  "lastCycleCompletedAt": "2026-05-04T03:57:16.403Z"
+}

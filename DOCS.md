@@ -1,6 +1,6 @@
 # agent-ops-hub — AI Tool Reference (DOCS.md)
 
-Version: **0.6.0** | Port: **11200** (HTTP) + stdio | Tools: **35** | Prompts: **7**
+Version: **0.7.0** | Port: **11200** (HTTP) + stdio | Tools: **38** | Prompts: **8**
 
 > **For AI agents:** This is your primary orchestration server. Start here to plan tasks, validate work, compare server capabilities, track roadmaps, and analyze test artifacts. Use the prompts to get structured guidance before starting complex workflows.
 
@@ -25,12 +25,15 @@ Version: **0.6.0** | Port: **11200** (HTTP) + stdio | Tools: **35** | Prompts: *
 | Analyze video metadata with ffprobe fallback | `analyze_video_file` |
 | Discover canonical MCP docs URLs | `discover_mcp_docs_index` |
 | Build reusable specialist skill manifests | `draft_skill_pack_manifest` |
+| Run continuous autonomous loop batches | `orchestrate_continuous_improvement_loop` |
+| Inspect autonomous loop state | `get_autonomous_loop_state` |
+| Pause/resume/trigger autonomous loop | `set_autonomous_loop_control` |
 | Check JS file syntax quality | `code_quality_gate` |
 | Get workflow guidance (prompt) | Prompt: `agent_ops_workflow` |
 
 ---
 
-## All 35 Tools
+## All 38 Tools
 
 ### Orchestration & Intelligence
 
@@ -281,6 +284,27 @@ Generate a specialist skill-pack manifest with role-to-skill mappings and operat
 ```
 Returns: `{ skillCount, skills: [...], operatingRules: [...] }`
 
+#### `orchestrate_continuous_improvement_loop`
+Run continuous autonomous batches with persisted state and cycle checkpoints.
+```json
+{ "goal": "continuously improve MCP quality", "maxCycles": 3, "cadenceMinutes": 10, "waitForCadence": false }
+```
+Returns: `{ status, cyclesRun, totalCycles, nextPulseAt, cycles: [...] }`
+
+#### `get_autonomous_loop_state`
+Read persisted loop state and recent cycle snapshot files.
+```json
+{ "includeRecentCycles": true, "recentLimit": 10 }
+```
+Returns: `{ state, recentCycles, snapshotCount }`
+
+#### `set_autonomous_loop_control`
+Control loop execution using pause/resume/trigger actions.
+```json
+{ "action": "pause", "reason": "manual review" }
+```
+Returns: `{ action, state }`
+
 ---
 
 ### Release & Changelog
@@ -301,7 +325,7 @@ Returns: `{ version, date, commitCount, outputPath, notes }`
 
 ---
 
-## 7 Prompts
+## 8 Prompts
 
 ### `agent_ops_workflow`
 Get step-by-step guidance for using agent-ops-hub to orchestrate a complex goal.
@@ -339,6 +363,12 @@ Get an operating model for specialist skill packs with rigorous quality contract
 Arguments: goal (optional)
 ```
 
+### `autonomous_loop_controller`
+Get a playbook for nonstop auto-mode with loop orchestration, controls, and checkpoint/resume behavior.
+```
+Arguments: goal (optional)
+```
+
 ### `release_prep_checklist`
 Full 10-step release preparation checklist: tests, changelog, version bump, tag, push.
 ```
@@ -362,6 +392,6 @@ POST http://127.0.0.1:11200/mcp     → same as stdio JSON-RPC; body: { jsonrpc,
 cd agent-ops-hub
 npm install
 node mcp-server.js        # stdio mode
-node tests/run-all.js     # run all 14 test groups
+node tests/run-all.js     # run all 15 test groups
 node --check mcp-server.js # syntax check
 ```
