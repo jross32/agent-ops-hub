@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-05T10:36:34.691Z",
+  "runStamp": "2026-05-05_063616",
+  "testFile": "group-r-http-chat/test.js",
+  "id": "group-r-http-chat",
+  "status": "pass",
+  "durationMs": 3615,
+  "notes": "HTTP chat now degrades cleanly without Claude2 and returns real replies via MCP sampling when a capable client is connected",
+  "details": {
+    "degraded": {
+      "port": 52838,
+      "chatId": "chat-http-test-1777977391113",
+      "mode": "degraded"
+    },
+    "sampling": {
+      "port": 52842,
+      "chatId": "chat-sampling-test-1777977391378",
+      "mode": "mcp_sampling"
+    }
+  }
+}

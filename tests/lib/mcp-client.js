@@ -3,18 +3,21 @@
 const { spawn } = require('child_process');
 
 class McpClient {
-  constructor(serverScriptPath) {
+  constructor(serverScriptPath, options = {}) {
     this.serverScriptPath = serverScriptPath;
+    this.options = options;
     this.proc = null;
     this.nextId = 1;
     this.pending = new Map();
     this.buffer = '';
+    this.receivedRequests = [];
   }
 
   async start() {
     this.proc = spawn('node', [this.serverScriptPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      env: this.options.env ? { ...process.env, ...this.options.env } : process.env,
     });
 
     this.proc.stdout.on('data', (chunk) => this._onStdout(chunk));
@@ -32,8 +35,8 @@ class McpClient {
 
     await this.request('initialize', {
       protocolVersion: '2024-11-05',
-      capabilities: {},
-      clientInfo: { name: 'agent-ops-hub-tests', version: '1.0.0' },
+      capabilities: this.options.clientCapabilities || {},
+      clientInfo: this.options.clientInfo || { name: 'agent-ops-hub-tests', version: '1.0.0' },
     });
   }
 
@@ -125,6 +128,40 @@ class McpClient {
     });
   }
 
+  _send(payload) {
+    if (!this.proc || !this.proc.stdin.writable) {
+      return;
+    }
+    this.proc.stdin.write(JSON.stringify(payload) + '\n');
+  }
+
+  _handleServerRequest(msg) {
+    this.receivedRequests.push(msg);
+
+    const onRequest = this.options.onRequest;
+    if (typeof onRequest !== 'function') {
+      this._send({
+        jsonrpc: '2.0',
+        id: msg.id,
+        error: { code: -32601, message: `Unsupported client method: ${msg.method}` },
+      });
+      return;
+    }
+
+    Promise.resolve()
+      .then(() => onRequest(msg))
+      .then((result) => {
+        this._send({ jsonrpc: '2.0', id: msg.id, result: result === undefined ? null : result });
+      })
+      .catch((error) => {
+        this._send({
+          jsonrpc: '2.0',
+          id: msg.id,
+          error: { code: -32603, message: error.message || 'Client request handler failed' },
+        });
+      });
+  }
+
   _onStdout(chunk) {
     this.buffer += chunk.toString('utf8');
     const lines = this.buffer.split(/\r?\n/);
@@ -140,6 +177,11 @@ class McpClient {
       try {
         msg = JSON.parse(trimmed);
       } catch (_error) {
+        continue;
+      }
+
+      if (msg.method && msg.id != null) {
+        this._handleServerRequest(msg);
         continue;
       }
 

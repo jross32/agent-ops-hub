@@ -374,11 +374,19 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: 7px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
+    .chat-header-main {
+      display: flex; flex-direction: column; gap: 4px; min-width: 0;
+    }
     .chat-session-sel {
       font-size: 11px; background: var(--surface2); border: 1px solid var(--border);
       color: var(--text); border-radius: 4px; padding: 3px 6px; font-family: inherit;
       max-width: 160px;
     }
+    .chat-backend-meta {
+      color: var(--dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      max-width: 220px;
+    }
+    .chat-backend-meta.degraded { color: var(--orange); }
     .chat-new-btn {
       font-size: 11px; background: none; border: 1px solid var(--border); color: var(--dim);
       border-radius: 4px; padding: 2px 7px; cursor: pointer; font-family: inherit;
@@ -548,6 +556,8 @@
       .panel-col { width: 100%; height: 260px; border-left: none; border-top: 1px solid var(--border); }
       .topbar-mid { gap: 10px; }
       .topbar-mid .stat:nth-child(n+2) { display: none; }
+      .chat-header { align-items: flex-start; gap: 8px; }
+      .chat-backend-meta { max-width: 100%; white-space: normal; }
     }
 
     /* Scrollbars */
@@ -591,7 +601,7 @@
   </div>
   <div class="topbar-right">
     <span class="pill pill-ver" id="version-pill">v?</span>
-    <span class="pill pill-port">:11200</span>
+    <span class="pill pill-port" id="port-pill">:?</span>
   </div>
 </header>
 
@@ -723,13 +733,16 @@
     <!-- CHAT TAB -->
     <div class="tab-panel" id="tab-chat">
       <div class="chat-header">
-        <select class="chat-session-sel" id="chat-session-sel" onchange="loadChatSession(this.value)">
-          <option value="">&#x2014; New chat &#x2014;</option>
-        </select>
+        <div class="chat-header-main">
+          <select class="chat-session-sel" id="chat-session-sel" onchange="loadChatSession(this.value)">
+            <option value="">&#x2014; New chat &#x2014;</option>
+          </select>
+          <div class="chat-backend-meta" id="chat-backend-meta">Configured chat backend</div>
+        </div>
         <button class="chat-new-btn" onclick="newChatSession()">+ New</button>
       </div>
       <div class="chat-messages" id="chat-messages">
-        <div class="chat-empty" id="chat-empty">Ask anything about the ops hub&#x2026;<br><br>Powered by Claude2 AI at localhost:12345</div>
+        <div class="chat-empty" id="chat-empty">Ask anything about the ops hub&#x2026;</div>
       </div>
       <div class="chat-input-row">
         <textarea class="chat-input" id="chat-input" placeholder="Ask about recent activity&#x2026;" rows="1" onkeydown="chatKeydown(event)"></textarea>
@@ -801,7 +814,7 @@
     <div class="foot-dot" id="foot-dot"></div>
     <span id="foot-status">Disconnected</span>
   </div>
-  <span>http://127.0.0.1:11200</span>
+  <span id="foot-url">http://127.0.0.1:?</span>
   <span id="foot-last">No events yet</span>
 </footer>
 
@@ -841,6 +854,7 @@ const S = {
   workers:{}, sprintWorkers:{}, sprintDataMap:{},
   activeSprint:null, logCount:0, logFilter:'all',
   chatId:null, allLogEntries:[], mcpServers:[],
+  chatBackend:{ name:'Claude2', url:'http://127.0.0.1:12345/api/ai/chat', available:null, degraded:false, code:null },
 };
 
 // Explorer
@@ -1207,6 +1221,34 @@ function refreshTests() {
 
 // Chat
 let chatSending=false;
+function escapeHtml(value){return String(value||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function renderChatBackendMeta() {
+  const meta=$('chat-backend-meta'); if(!meta)return;
+  const backend=S.chatBackend||{};
+  const name=backend.name||'Configured backend';
+  const mode=backend.degraded?'degraded':backend.available===true?'ready':'configured';
+  meta.textContent=`${name} · ${mode}`;
+  meta.title=backend.url||name;
+  meta.classList.toggle('degraded',!!backend.degraded);
+}
+function renderChatEmptyState() {
+  const backend=S.chatBackend||{};
+  const name=escapeHtml(backend.name||'Configured chat backend');
+  const url=escapeHtml(backend.url||'No backend configured');
+  const status=backend.degraded
+    ? 'Status: degraded — replies are fallback messages until the backend is reachable.'
+    : backend.available===true
+      ? 'Status: ready'
+      : 'Status: configured — waiting for the first successful round-trip.';
+  $('chat-messages').innerHTML=`<div class="chat-empty" id="chat-empty">Ask anything about the ops hub…<br><br>${name}<br>${url}<br>${escapeHtml(status)}</div>`;
+}
+function updateChatBackendState(backend, options={}) {
+  if(backend&&typeof backend==='object') S.chatBackend=Object.assign({},S.chatBackend,backend);
+  if(options.degraded!==undefined) S.chatBackend.degraded=!!options.degraded;
+  if(options.code!==undefined) S.chatBackend.code=options.code;
+  renderChatBackendMeta();
+  if(!S.chatId&&$('chat-empty')) renderChatEmptyState();
+}
 function loadChatSessions() {
   fetch('/api/chat/history').then(r=>r.json()).then(d=>{
     const sel=$('chat-session-sel'); sel.innerHTML='<option value="">— New chat —</option>';
@@ -1219,7 +1261,7 @@ function loadChatSession(chatId) {
   $('chat-messages').innerHTML='';
   fetch('/api/chat/history/'+chatId).then(r=>r.json()).then(d=>{for(const m of (d.messages||[]))renderChatBubble(m.role,m.content,m.ts);scrollChatBottom();}).catch(()=>showToast('Could not load session','error'));
 }
-function newChatSession() { S.chatId=null; $('chat-session-sel').value=''; $('chat-messages').innerHTML='<div class="chat-empty" id="chat-empty">Ask anything about the ops hub…<br><br>Powered by Claude2 AI at localhost:12345</div>'; }
+function newChatSession() { S.chatId=null; $('chat-session-sel').value=''; renderChatEmptyState(); }
 function renderChatBubble(role,content,ts) {
   const empty=$('chat-empty'); if(empty) empty.style.display='none';
   const msgs=$('chat-messages'), div=document.createElement('div');
@@ -1241,8 +1283,10 @@ function sendChat() {
   fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,chatId:S.chatId||undefined})})
     .then(r=>r.json()).then(d=>{
       thinkDiv.remove();
+      if(d.backend) updateChatBackendState(d.backend,{degraded:!!d.degraded,code:d.code||null});
       if(d.error)renderChatBubble('assistant','⚠ '+d.error);
       else{if(!S.chatId){S.chatId=d.chatId;loadChatSessions();}renderChatBubble('assistant',d.reply||'(no reply)',d.ts);}
+      if(d.degraded) showToast('Chat backend unavailable — showing degraded reply','error');
       scrollChatBottom();
     }).catch(e=>{thinkDiv.remove();renderChatBubble('assistant','⚠ Network error: '+e.message);scrollChatBottom();})
     .finally(()=>{chatSending=false;$('chat-send').disabled=false;});
@@ -1256,7 +1300,9 @@ function showToast(msg,type='info'){
 }
 
 // Init
-fetch('/health').then(r=>r.json()).then(d=>{if(d.version){$('version-pill').textContent='v'+d.version;}if(d.uptime!=null)onPing({uptime:d.uptime,toolCallCount:d.toolCallCount,clientCount:d.sseClients});}).catch(()=>{});
+renderChatBackendMeta();
+renderChatEmptyState();
+fetch('/health').then(r=>r.json()).then(d=>{if(d.version){$('version-pill').textContent='v'+d.version;}if(d.port!=null){$('port-pill').textContent=':'+d.port;$('foot-url').textContent='http://127.0.0.1:'+d.port;}if(d.uptime!=null)onPing({uptime:d.uptime,toolCallCount:d.toolCallCount,clientCount:d.sseClients});if(d.chatBackend)updateChatBackendState(d.chatBackend,{degraded:false,code:null});}).catch(()=>{});
 connect();
 loadSprintHistory();
 loadMcpServers();

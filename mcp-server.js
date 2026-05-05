@@ -1472,9 +1472,32 @@ const PROMPTS = [
   }
 ];
 
-const HTTP_PORT = 11200;
+function readPositiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const HTTP_PORT = readPositiveIntEnv('HTTP_PORT', 11200);
+const MCP_CLIENT_REQUEST_TIMEOUT_MS = readPositiveIntEnv('AGENT_OPS_CLIENT_REQUEST_TIMEOUT_MS', 45000);
 
 let inputBuffer = '';
+const pendingClientRequests = new Map();
+const mcpClientSession = {
+  initialized: false,
+  lastSeenAt: null,
+  clientInfo: null,
+  capabilities: {},
+};
+const lastChatTransportState = {
+  mode: 'http_proxy',
+  available: null,
+  degraded: false,
+  code: null,
+  error: null,
+  updatedAt: null,
+};
+let nextClientRequestId = 100000;
 
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
@@ -1502,16 +1525,45 @@ function processIncoming() {
       continue;
     }
 
+    if (isPendingClientResponse(message)) {
+      settlePendingClientResponse(message);
+      continue;
+    }
+
     handleMessage(message).catch((error) => {
       sendError(message.id || null, -32603, error.message || 'Internal error');
     });
   }
 }
 
+function isPendingClientResponse(message) {
+  return !!(
+    message
+    && Object.prototype.hasOwnProperty.call(message, 'id')
+    && !Object.prototype.hasOwnProperty.call(message, 'method')
+    && pendingClientRequests.has(message.id)
+  );
+}
+
+function settlePendingClientResponse(message) {
+  const pending = pendingClientRequests.get(message.id);
+  if (!pending) {
+    return;
+  }
+  clearTimeout(pending.timeout);
+  pendingClientRequests.delete(message.id);
+  if (message.error) {
+    pending.reject(new Error(message.error.message || `Client request failed: ${pending.method}`));
+    return;
+  }
+  pending.resolve(message.result);
+}
+
 async function handleMessage(message) {
   const { id, method, params } = message;
 
   if (method === 'initialize') {
+    rememberMcpClient(params);
     return sendResult(id, {
       protocolVersion: '2024-11-05',
       serverInfo: {
@@ -1523,6 +1575,11 @@ async function handleMessage(message) {
         prompts: {}
       }
     });
+  }
+
+  if (method === 'notifications/initialized') {
+    mcpClientSession.lastSeenAt = Date.now();
+    return;
   }
 
   if (method === 'tools/list') {
@@ -1571,7 +1628,30 @@ async function handleMessage(message) {
     });
   }
 
+  if (!id && typeof method === 'string' && method.startsWith('notifications/')) {
+    return;
+  }
+
   sendError(id || null, -32601, `Method not found: ${method}`);
+}
+
+function rememberMcpClient(params) {
+  mcpClientSession.initialized = true;
+  mcpClientSession.lastSeenAt = Date.now();
+  mcpClientSession.clientInfo = params && params.clientInfo ? params.clientInfo : null;
+  mcpClientSession.capabilities = params && params.capabilities && typeof params.capabilities === 'object'
+    ? params.capabilities
+    : {};
+
+  if (clientSupportsSampling()) {
+    updateChatTransportState({
+      mode: 'mcp_sampling',
+      available: true,
+      degraded: false,
+      code: null,
+      error: null,
+    });
+  }
 }
 
 async function runTool(name, args) {
@@ -2579,7 +2659,7 @@ async function codeQualityGate(args) {
     const lineCount = content.split('\n').length;
     const result    = await runShellCommand(`node --check "${filePath}"`, path.dirname(filePath), timeoutMs);
     const syntaxOk  = result.exitCode === 0;
-    const score     = syntaxOk ? Math.min(100, Math.round(100 - Math.max(0, lineCount - 500) / 50)) : 0;
+    const score     = syntaxOk ? Math.max(0, Math.min(100, Math.round(100 - Math.max(0, lineCount - 500) / 50))) : 0;
     results.push({
       file: filePath,
       exists: true,
@@ -7284,6 +7364,11 @@ OUTPUT FORMAT:
 const chatHistoryDir = path.join(__dirname, 'artifacts', 'chat-history');
 if (!fs.existsSync(chatHistoryDir)) fs.mkdirSync(chatHistoryDir, { recursive: true });
 
+const CHAT_BACKEND_NAME = process.env.AGENT_OPS_CHAT_BACKEND_NAME || 'Claude2';
+const CHAT_BACKEND_URL = process.env.AGENT_OPS_CHAT_BACKEND_URL || process.env.CHAT_BACKEND_URL || 'http://127.0.0.1:12345/api/ai/chat';
+const CHAT_CONTEXT_URL = process.env.AGENT_OPS_CHAT_CONTEXT_URL || `http://127.0.0.1:${HTTP_PORT}/events/recent`;
+const CHAT_BACKEND_TIMEOUT_MS = readPositiveIntEnv('AGENT_OPS_CHAT_BACKEND_TIMEOUT_MS', 30000);
+
 let _mcpServerCache = null;
 let _mcpServerCacheTime = 0;
 const MCP_CACHE_TTL = 30000;
@@ -7344,20 +7429,21 @@ async function scanMcpServers() {
   return results;
 }
 
-function proxyJsonPost(targetUrl, body) {
+function proxyJsonPost(targetUrl, body, requestConfig = {}) {
   return new Promise((resolve, reject) => {
     const bodyStr = JSON.stringify(body);
     const urlObj = new URL(targetUrl);
     const mod = urlObj.protocol === 'https:' ? https : http;
-    const options = {
+    const timeoutMs = Number.isFinite(requestConfig.timeoutMs) && requestConfig.timeoutMs > 0 ? requestConfig.timeoutMs : 30000;
+    const requestOptions = {
       hostname: urlObj.hostname,
       port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
       path: urlObj.pathname + urlObj.search,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) },
-      timeout: 30000,
+      timeout: timeoutMs,
     };
-    const req2 = mod.request(options, (r2) => {
+    const req2 = mod.request(requestOptions, (r2) => {
       let data = ''; r2.on('data', c => data += c);
       r2.on('end', () => {
         try { resolve({ status: r2.statusCode, body: JSON.parse(data) }); }
@@ -7368,6 +7454,262 @@ function proxyJsonPost(targetUrl, body) {
     req2.on('timeout', () => { req2.destroy(); reject(new Error('Request timed out')); });
     req2.write(bodyStr); req2.end();
   });
+}
+
+function clientSupportsSampling() {
+  const sampling = mcpClientSession.capabilities && mcpClientSession.capabilities.sampling;
+  return !!(mcpClientSession.initialized && sampling && typeof sampling === 'object');
+}
+
+function updateChatTransportState(nextState = {}) {
+  Object.assign(lastChatTransportState, nextState, {
+    updatedAt: new Date().toISOString(),
+  });
+  return getChatBackendInfo();
+}
+
+function getChatBackendInfo(overrides = {}) {
+  const samplingAvailable = clientSupportsSampling();
+  const base = samplingAvailable
+    ? {
+        mode: 'mcp_sampling',
+        name: mcpClientSession.clientInfo && mcpClientSession.clientInfo.name
+          ? `${mcpClientSession.clientInfo.name} (MCP sampling)`
+          : 'Connected MCP client (sampling)',
+        url: 'mcp://sampling/createMessage',
+        fallbackUrl: CHAT_BACKEND_URL,
+        timeoutMs: CHAT_BACKEND_TIMEOUT_MS,
+        contextUrl: CHAT_CONTEXT_URL,
+        samplingAvailable: true,
+        available: true,
+        degraded: false,
+        clientInfo: mcpClientSession.clientInfo || null,
+      }
+    : {
+        mode: 'http_proxy',
+        name: CHAT_BACKEND_NAME,
+        url: CHAT_BACKEND_URL,
+        timeoutMs: CHAT_BACKEND_TIMEOUT_MS,
+        contextUrl: CHAT_CONTEXT_URL,
+        samplingAvailable: false,
+        available: null,
+        degraded: false,
+        clientInfo: mcpClientSession.clientInfo || null,
+      };
+
+  const state = lastChatTransportState.mode === base.mode ? lastChatTransportState : null;
+  if (state && state.updatedAt) {
+    Object.assign(base, {
+      available: state.available,
+      degraded: !!state.degraded,
+      code: state.code || null,
+      error: state.error || null,
+      updatedAt: state.updatedAt,
+    });
+  }
+
+  return Object.assign(base, overrides);
+}
+
+function requestClient(method, params, options = {}) {
+  if (!mcpClientSession.initialized) {
+    return Promise.reject(new Error('No MCP client is connected to agent-ops-hub'));
+  }
+
+  const id = nextClientRequestId++;
+  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+    ? options.timeoutMs
+    : MCP_CLIENT_REQUEST_TIMEOUT_MS;
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingClientRequests.delete(id);
+      reject(new Error(`${method} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    pendingClientRequests.set(id, { method, resolve, reject, timeout });
+    process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`, (error) => {
+      if (!error) {
+        return;
+      }
+      clearTimeout(timeout);
+      pendingClientRequests.delete(id);
+      reject(error);
+    });
+  });
+}
+
+function buildSamplingMessages(history) {
+  return history
+    .slice(-12)
+    .map((entry) => ({
+      role: entry.role === 'assistant' ? 'assistant' : 'user',
+      content: {
+        type: 'text',
+        text: String(entry.content || ''),
+      },
+    }))
+    .filter((entry) => entry.content.text.trim());
+}
+
+function extractTextContent(value, depth = 0) {
+  if (depth > 6 || value == null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => extractTextContent(item, depth + 1))
+      .filter(Boolean)
+      .join('\n\n')
+      .trim();
+  }
+  if (typeof value !== 'object') {
+    return '';
+  }
+  if (typeof value.text === 'string' && value.text.trim()) {
+    return value.text.trim();
+  }
+  if (value.content !== undefined) {
+    const nested = extractTextContent(value.content, depth + 1);
+    if (nested) return nested;
+  }
+  if (value.message !== undefined) {
+    const nested = extractTextContent(value.message, depth + 1);
+    if (nested) return nested;
+  }
+  if (value.parts !== undefined) {
+    const nested = extractTextContent(value.parts, depth + 1);
+    if (nested) return nested;
+  }
+  return '';
+}
+
+function getSamplingReplyText(replyBody) {
+  const text = replyBody && Object.prototype.hasOwnProperty.call(replyBody, 'content')
+    ? extractTextContent(replyBody.content)
+    : extractTextContent(replyBody);
+  return text.slice(0, 4000).trim();
+}
+
+async function sampleChatReply(history) {
+  const messages = buildSamplingMessages(history);
+  if (!messages.length) {
+    throw new Error('Sampling chat requires at least one message');
+  }
+
+  return requestClient('sampling/createMessage', {
+    messages,
+    systemPrompt: 'You are the agent-ops-hub dashboard assistant. Answer directly, concretely, and stay focused on the user request.',
+    maxTokens: 1200,
+  }, {
+    timeoutMs: CHAT_BACKEND_TIMEOUT_MS,
+  });
+}
+
+function readChatHistory(histPath) {
+  if (!fs.existsSync(histPath)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(histPath, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeChatHistory(histPath, history) {
+  fs.writeFileSync(histPath, JSON.stringify(history, null, 2));
+}
+
+function getChatReplyText(replyBody) {
+  if (replyBody && typeof replyBody === 'object') {
+    if (typeof replyBody.answer === 'string' && replyBody.answer.trim()) return replyBody.answer.trim();
+    if (typeof replyBody.reply === 'string' && replyBody.reply.trim()) return replyBody.reply.trim();
+    if (typeof replyBody.error === 'string' && replyBody.error.trim()) return replyBody.error.trim();
+  }
+  return String(replyBody || '').slice(0, 1000);
+}
+
+function isChatBackendTimeout(error) {
+  const message = String((error && error.message) || error || '');
+  return /timed out/i.test(message);
+}
+
+function isChatBackendUnavailable(error) {
+  const code = String((error && error.code) || '');
+  const message = String((error && error.message) || error || '');
+  return code === 'ECONNREFUSED' || /ECONNREFUSED|actively refused|ENOTFOUND|EHOSTUNREACH|socket hang up/i.test(message);
+}
+
+function buildChatBackendFailurePayload(sessionId, reason) {
+  const ts = new Date().toISOString();
+  let code = 'chat_backend_unavailable';
+  let reply = `${CHAT_BACKEND_NAME} chat backend is unavailable right now. Start the backend at ${CHAT_BACKEND_URL} or set AGENT_OPS_CHAT_BACKEND_URL to the correct endpoint, then try again.`;
+
+  if (reason && Number.isFinite(reason.status)) {
+    code = 'chat_backend_http_error';
+    reply = `${CHAT_BACKEND_NAME} chat backend returned HTTP ${reason.status}. Check the upstream service logs and endpoint configuration, then try again.`;
+  } else if (reason && isChatBackendTimeout(reason.error)) {
+    code = 'chat_backend_timeout';
+    reply = `${CHAT_BACKEND_NAME} chat backend timed out after ${CHAT_BACKEND_TIMEOUT_MS}ms. Check whether the upstream service is responsive, then try again.`;
+  } else if (reason && !isChatBackendUnavailable(reason.error)) {
+    code = 'chat_backend_error';
+    reply = `${CHAT_BACKEND_NAME} chat backend failed unexpectedly. Check the upstream service and endpoint configuration, then try again.`;
+  }
+
+  const backend = updateChatTransportState({
+    mode: 'http_proxy',
+    available: false,
+    degraded: true,
+    code,
+    error: reason && reason.error ? String(reason.error.message || reason.error) : null,
+  });
+
+  return {
+    reply,
+    chatId: sessionId,
+    ts,
+    degraded: true,
+    code,
+    findings: [],
+    backend: Object.assign({}, backend, {
+      status: reason && Number.isFinite(reason.status) ? reason.status : null,
+    }),
+  };
+}
+
+function buildChatSamplingFailurePayload(sessionId, error) {
+  const ts = new Date().toISOString();
+  const clientName = mcpClientSession.clientInfo && mcpClientSession.clientInfo.name
+    ? mcpClientSession.clientInfo.name
+    : 'connected MCP client';
+  let code = 'chat_sampling_error';
+  let reply = `${clientName} failed to produce a sampled chat reply. Check the MCP client connection and approval flow, then try again.`;
+
+  if (isChatBackendTimeout(error)) {
+    code = 'chat_sampling_timeout';
+    reply = `${clientName} timed out while creating a sampled reply after ${CHAT_BACKEND_TIMEOUT_MS}ms. Check the MCP client connection, then try again.`;
+  }
+
+  const backend = updateChatTransportState({
+    mode: 'mcp_sampling',
+    available: false,
+    degraded: true,
+    code,
+    error: error ? String(error.message || error) : null,
+  });
+
+  return {
+    reply,
+    chatId: sessionId,
+    ts,
+    degraded: true,
+    code,
+    findings: [],
+    backend,
+  };
 }
 
 // ── HTTP server ──────────────────────────────────────────────────────────
@@ -7425,7 +7767,8 @@ const httpServer = http.createServer((req, res) => {
       port: HTTP_PORT,
       uptime: Math.round((Date.now() - serverStartTime) / 1000),
       sseClients: sseClients.size,
-      toolCallCount
+      toolCallCount,
+      chatBackend: getChatBackendInfo(),
     }));
     return;
   }
@@ -7537,30 +7880,116 @@ const httpServer = http.createServer((req, res) => {
       try { parsed = JSON.parse(body); } catch (_) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid JSON' })); return; }
       const { message, chatId } = parsed;
       if (!message || !String(message).trim()) { res.writeHead(400); res.end(JSON.stringify({ error: 'message is required' })); return; }
+      const userMessage = String(message).trim();
       const sessionId = chatId || `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const histPath = path.join(chatHistoryDir, `${sessionId}.json`);
+      const history = readChatHistory(histPath);
+      const userTs = new Date().toISOString();
+      history.push({ role: 'user', content: userMessage, ts: userTs });
+
+      if (clientSupportsSampling()) {
+        try {
+          const sampled = await sampleChatReply(history);
+          const reply = getSamplingReplyText(sampled);
+          if (!reply) {
+            throw new Error('Sampling client returned no text reply');
+          }
+          const assistantTs = new Date().toISOString();
+          const backend = updateChatTransportState({
+            mode: 'mcp_sampling',
+            available: true,
+            degraded: false,
+            code: null,
+            error: null,
+          });
+          history.push({
+            role: 'assistant',
+            content: reply,
+            ts: assistantTs,
+            meta: {
+              degraded: false,
+              mode: 'mcp_sampling',
+              model: sampled && sampled.model ? sampled.model : null,
+            },
+          });
+          writeChatHistory(histPath, history);
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            reply,
+            chatId: sessionId,
+            ts: assistantTs,
+            degraded: false,
+            findings: [],
+            backend: Object.assign({}, backend, {
+              model: sampled && sampled.model ? sampled.model : null,
+              stopReason: sampled && sampled.stopReason ? sampled.stopReason : null,
+            }),
+          }));
+          return;
+        } catch (error) {
+          const degraded = buildChatSamplingFailurePayload(sessionId, error);
+          history.push({
+            role: 'assistant',
+            content: degraded.reply,
+            ts: degraded.ts,
+            meta: {
+              degraded: true,
+              code: degraded.code,
+              mode: 'mcp_sampling',
+              error: degraded.backend.error || null,
+            },
+          });
+          writeChatHistory(histPath, history);
+          res.writeHead(200);
+          res.end(JSON.stringify(degraded));
+          return;
+        }
+      }
+
       try {
-        const result = await proxyJsonPost('http://localhost:12345/api/ai/chat', {
-          question: String(message).trim(),
+        const result = await proxyJsonPost(CHAT_BACKEND_URL, {
+          question: userMessage,
           source: 'url',
-          url: 'http://127.0.0.1:11200/events/recent',
+          url: CHAT_CONTEXT_URL,
           maxPages: 1,
-        });
+        }, { timeoutMs: CHAT_BACKEND_TIMEOUT_MS });
         const replyBody = result.body;
-        const reply = (typeof replyBody === 'object' ? replyBody.answer : null)
-          || (typeof replyBody === 'object' ? replyBody.error : null)
-          || String(replyBody).slice(0, 1000);
-        const histPath = path.join(chatHistoryDir, `${sessionId}.json`);
-        let history = [];
-        if (fs.existsSync(histPath)) { try { history = JSON.parse(fs.readFileSync(histPath, 'utf8')); } catch (_) {} }
-        const ts = new Date().toISOString();
-        history.push({ role: 'user', content: String(message).trim(), ts });
-        history.push({ role: 'assistant', content: reply, ts: new Date().toISOString() });
-        fs.writeFileSync(histPath, JSON.stringify(history, null, 2));
+        if (!result.status || result.status < 200 || result.status >= 300) {
+          const degraded = buildChatBackendFailurePayload(sessionId, { status: result.status });
+          history.push({ role: 'assistant', content: degraded.reply, ts: degraded.ts, meta: { degraded: true, code: degraded.code, status: result.status } });
+          writeChatHistory(histPath, history);
+          res.writeHead(200);
+          res.end(JSON.stringify(degraded));
+          return;
+        }
+        const reply = getChatReplyText(replyBody);
+        const assistantTs = new Date().toISOString();
+        const backend = updateChatTransportState({
+          mode: 'http_proxy',
+          available: true,
+          degraded: false,
+          code: null,
+          error: null,
+        });
+        history.push({ role: 'assistant', content: reply, ts: assistantTs, meta: { degraded: false, mode: 'http_proxy', status: result.status } });
+        writeChatHistory(histPath, history);
         res.writeHead(200);
-        res.end(JSON.stringify({ reply, chatId: sessionId, ts, findings: (replyBody.findings || []) }));
+        res.end(JSON.stringify({
+          reply,
+          chatId: sessionId,
+          ts: assistantTs,
+          degraded: false,
+          findings: Array.isArray(replyBody && replyBody.findings) ? replyBody.findings : [],
+          backend: Object.assign({}, backend, {
+            status: result.status,
+          }),
+        }));
       } catch (e) {
-        res.writeHead(502);
-        res.end(JSON.stringify({ error: e.message, code: 'proxy_failed' }));
+        const degraded = buildChatBackendFailurePayload(sessionId, { error: e });
+        history.push({ role: 'assistant', content: degraded.reply, ts: degraded.ts, meta: { degraded: true, code: degraded.code, mode: 'http_proxy', error: degraded.backend.error } });
+        writeChatHistory(histPath, history);
+        res.writeHead(200);
+        res.end(JSON.stringify(degraded));
       }
     });
     return;
