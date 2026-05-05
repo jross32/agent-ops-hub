@@ -1,0 +1,17 @@
+[
+  {
+    "role": "user",
+    "content": "Hello! What can you help me with?",
+    "ts": "2026-05-05T10:45:56.237Z"
+  },
+  {
+    "role": "assistant",
+    "content": "No strongly matching content found for the question. See relevantText for best available content.",
+    "ts": "2026-05-05T10:45:59.089Z",
+    "meta": {
+      "degraded": false,
+      "mode": "http_proxy",
+      "status": 200
+    }
+  }
+]

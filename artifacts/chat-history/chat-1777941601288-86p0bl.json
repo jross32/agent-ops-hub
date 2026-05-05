@@ -1,0 +1,22 @@
+[
+  {
+    "role": "user",
+    "content": "Hi",
+    "ts": "2026-05-05T00:40:05.646Z"
+  },
+  {
+    "role": "assistant",
+    "content": "No strongly matching content found for the question. See relevantText for best available content.",
+    "ts": "2026-05-05T00:40:05.646Z"
+  },
+  {
+    "role": "user",
+    "content": "What’s relevanttext",
+    "ts": "2026-05-05T00:40:31.366Z"
+  },
+  {
+    "role": "assistant",
+    "content": "No strongly matching content found for the question. See relevantText for best available content.",
+    "ts": "2026-05-05T00:40:31.366Z"
+  }
+]

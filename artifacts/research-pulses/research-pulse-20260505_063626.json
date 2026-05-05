@@ -1,0 +1,58 @@
+{
+  "scanned": 1,
+  "scannedAt": "2026-05-05T10:36:26.013Z",
+  "keywords": [
+    "workflow",
+    "quality",
+    "automation",
+    "parallel"
+  ],
+  "keywordCoverage": {
+    "workflow": 0,
+    "quality": 0,
+    "automation": 0,
+    "parallel": 1
+  },
+  "scans": [
+    {
+      "url": "https://playwright.dev/docs/intro",
+      "statusCode": 200,
+      "title": "Installation | Playwright",
+      "keywordScore": 1
+    }
+  ],
+  "ideas": [
+    {
+      "rank": 1,
+      "id": "parallel-execution-wave",
+      "sourceUrl": "https://playwright.dev/docs/intro",
+      "title": "Increase parallel execution wave capacity",
+      "action": "Add wave-aware scheduling and dynamic parallelism limits for multi-agent pods.",
+      "score": 6
+    },
+    {
+      "rank": 2,
+      "id": "continuous-evals-loop",
+      "sourceUrl": "https://playwright.dev/docs/intro",
+      "title": "Expand continuous eval loop",
+      "action": "Run periodic eval suites after each improvement pulse and store trend snapshots.",
+      "score": 6
+    },
+    {
+      "rank": 3,
+      "id": "agent-role-routing",
+      "sourceUrl": "https://playwright.dev/docs/intro",
+      "title": "Improve specialist role routing",
+      "action": "Route tasks to specialist pods by domain confidence and track assignment outcomes.",
+      "score": 6
+    }
+  ],
+  "recommendations": [
+    "Add wave-aware scheduling and dynamic parallelism limits for multi-agent pods.",
+    "Run periodic eval suites after each improvement pulse and store trend snapshots.",
+    "Route tasks to specialist pods by domain confidence and track assignment outcomes."
+  ],
+  "persistedAt": "2026-05-05T10:36:26.014Z",
+  "cadenceMinutes": 10,
+  "nextSuggestedRunAt": "2026-05-05T10:46:26.014Z"
+}

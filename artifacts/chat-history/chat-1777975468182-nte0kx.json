@@ -1,0 +1,17 @@
+[
+  {
+    "role": "user",
+    "content": "Can you summarize recent activity?",
+    "ts": "2026-05-05T10:04:28.183Z"
+  },
+  {
+    "role": "assistant",
+    "content": "Claude2 chat backend is unavailable right now. Start the backend at http://127.0.0.1:18999/api/ai/chat or set AGENT_OPS_CHAT_BACKEND_URL to the correct endpoint, then try again.",
+    "ts": "2026-05-05T10:04:28.190Z",
+    "meta": {
+      "degraded": true,
+      "code": "chat_backend_unavailable",
+      "error": "connect ECONNREFUSED 127.0.0.1:18999"
+    }
+  }
+]

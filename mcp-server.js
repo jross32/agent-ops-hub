@@ -6,6 +6,9 @@ const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
 
+const _pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+const SERVER_VERSION = _pkg.version;
+
 const DEFAULT_MCP_ROOT = 'C:/Users/justi/mcp-servers';
 const DEFAULT_RUNBOOK_DIR = path.resolve(__dirname, 'artifacts', 'runbooks');
 const DEFAULT_RESEARCH_DIR = path.resolve(__dirname, 'artifacts', 'research-pulses');
@@ -1568,7 +1571,7 @@ async function handleMessage(message) {
       protocolVersion: '2024-11-05',
       serverInfo: {
         name: 'agent-ops-hub',
-        version: '0.9.1'
+        version: SERVER_VERSION
       },
       capabilities: {
         tools: {},
@@ -7761,7 +7764,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       status: 'ok',
       server: 'agent-ops-hub',
-      version: '1.0.0',
+      version: SERVER_VERSION,
       tools: TOOLS.length,
       prompts: PROMPTS.length,
       port: HTTP_PORT,

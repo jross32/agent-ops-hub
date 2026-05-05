@@ -1,0 +1,17 @@
+[
+  {
+    "role": "user",
+    "content": "List the tools available in json-forge.",
+    "ts": "2026-05-05T10:47:55.506Z"
+  },
+  {
+    "role": "assistant",
+    "content": "No strongly matching content found for the question. See relevantText for best available content.",
+    "ts": "2026-05-05T10:47:58.932Z",
+    "meta": {
+      "degraded": false,
+      "mode": "http_proxy",
+      "status": 200
+    }
+  }
+]

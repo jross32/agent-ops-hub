@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-04T07:52:05.851Z",
-  "runStamp": "2026-05-04_035204",
+  "timestamp": "2026-05-05T10:36:17.368Z",
+  "runStamp": "2026-05-05_063616",
   "testFile": "group-b-research/test.js",
   "id": "group-b-research",
   "status": "pass",
-  "durationMs": 430,
+  "durationMs": 391,
   "notes": "research scanned 2 urls (success=2, errors=0)",
   "details": {
     "scanned": 2,

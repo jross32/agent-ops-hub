@@ -1,0 +1,26 @@
+{
+  "id": "diff-base-20260505_062849",
+  "name": "diff-base",
+  "objective": "baseline plan",
+  "createdAt": "2026-05-05T10:28:49.374Z",
+  "steps": [
+    {
+      "index": 1,
+      "id": "step-a",
+      "title": "Step A",
+      "command": "node --version",
+      "mustPass": true
+    },
+    {
+      "index": 2,
+      "id": "step-b",
+      "title": "Step B",
+      "command": "npm --version",
+      "mustPass": true
+    }
+  ],
+  "policy": {
+    "stopOnFail": true,
+    "requiresValidation": true
+  }
+}

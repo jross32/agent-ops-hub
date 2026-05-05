@@ -1,0 +1,32 @@
+[
+  {
+    "role": "user",
+    "content": "What tools do you have available?",
+    "ts": "2026-05-05T10:41:48.142Z"
+  },
+  {
+    "role": "assistant",
+    "content": "No strongly matching content found for the question. See relevantText for best available content.",
+    "ts": "2026-05-05T10:41:53.449Z",
+    "meta": {
+      "degraded": false,
+      "mode": "http_proxy",
+      "status": 200
+    }
+  },
+  {
+    "role": "user",
+    "content": "List your available tools",
+    "ts": "2026-05-05T10:42:54.574Z"
+  },
+  {
+    "role": "assistant",
+    "content": "No strongly matching content found for the question. See relevantText for best available content.",
+    "ts": "2026-05-05T10:42:57.655Z",
+    "meta": {
+      "degraded": false,
+      "mode": "http_proxy",
+      "status": 200
+    }
+  }
+]

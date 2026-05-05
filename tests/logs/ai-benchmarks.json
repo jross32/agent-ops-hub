@@ -376,5 +376,229 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2026-05-05T00:41:32.759Z",
+    "model": "Claude Sonnet 4.6",
+    "version": "1.0",
+    "overall": 70,
+    "grade": "B-",
+    "scores": {
+      "tool_accuracy": 0,
+      "test_suite_health": 100,
+      "sprint_output_quality": 50,
+      "api_availability": 100,
+      "response_latency": 100
+    },
+    "categories": {
+      "tool_accuracy": {
+        "score": 0,
+        "passed": 0,
+        "total": 5,
+        "checks": [
+          {
+            "tool": "export_tool_catalog",
+            "ok": false,
+            "ms": 1,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "get_memory",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "get_tool_metrics",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "list_loaded_skill_packs",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "get_autonomous_loop_state",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          }
+        ]
+      },
+      "test_suite_health": {
+        "score": 100,
+        "passRate": 100,
+        "passed": 82,
+        "total": 82,
+        "failed": 0,
+        "timestamp": "2026-05-04T23:01:00.556Z"
+      },
+      "sprint_output_quality": {
+        "score": 50,
+        "detail": "No scored sprints found",
+        "sprintCount": 0
+      },
+      "api_availability": {
+        "score": 100,
+        "passed": 4,
+        "total": 4,
+        "endpoints": [
+          {
+            "path": "/health",
+            "ok": true,
+            "statusCode": 200
+          },
+          {
+            "path": "/api/test-results",
+            "ok": true,
+            "statusCode": 200
+          },
+          {
+            "path": "/events/recent",
+            "ok": true,
+            "statusCode": 200
+          },
+          {
+            "path": "/",
+            "ok": true,
+            "statusCode": 200
+          }
+        ]
+      },
+      "response_latency": {
+        "score": 100,
+        "avgMs": 0,
+        "maxMs": 0,
+        "trials": [
+          {
+            "tool": "export_tool_catalog",
+            "ms": 0
+          },
+          {
+            "tool": "get_memory",
+            "ms": 0
+          },
+          {
+            "tool": "get_tool_metrics",
+            "ms": 0
+          }
+        ]
+      }
+    }
+  },
+  {
+    "timestamp": "2026-05-05T00:41:37.738Z",
+    "model": "Claude Sonnet 4.6",
+    "version": "1.0",
+    "overall": 70,
+    "grade": "B-",
+    "scores": {
+      "tool_accuracy": 0,
+      "test_suite_health": 100,
+      "sprint_output_quality": 50,
+      "api_availability": 100,
+      "response_latency": 100
+    },
+    "categories": {
+      "tool_accuracy": {
+        "score": 0,
+        "passed": 0,
+        "total": 5,
+        "checks": [
+          {
+            "tool": "export_tool_catalog",
+            "ok": false,
+            "ms": 1,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "get_memory",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "get_tool_metrics",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "list_loaded_skill_packs",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          },
+          {
+            "tool": "get_autonomous_loop_state",
+            "ok": false,
+            "ms": 0,
+            "detail": "handleTool is not defined"
+          }
+        ]
+      },
+      "test_suite_health": {
+        "score": 100,
+        "passRate": 100,
+        "passed": 82,
+        "total": 82,
+        "failed": 0,
+        "timestamp": "2026-05-04T23:01:00.556Z"
+      },
+      "sprint_output_quality": {
+        "score": 50,
+        "detail": "No scored sprints found",
+        "sprintCount": 0
+      },
+      "api_availability": {
+        "score": 100,
+        "passed": 4,
+        "total": 4,
+        "endpoints": [
+          {
+            "path": "/health",
+            "ok": true,
+            "statusCode": 200
+          },
+          {
+            "path": "/api/test-results",
+            "ok": true,
+            "statusCode": 200
+          },
+          {
+            "path": "/events/recent",
+            "ok": true,
+            "statusCode": 200
+          },
+          {
+            "path": "/",
+            "ok": true,
+            "statusCode": 200
+          }
+        ]
+      },
+      "response_latency": {
+        "score": 100,
+        "avgMs": 0,
+        "maxMs": 0,
+        "trials": [
+          {
+            "tool": "export_tool_catalog",
+            "ms": 0
+          },
+          {
+            "tool": "get_memory",
+            "ms": 0
+          },
+          {
+            "tool": "get_tool_metrics",
+            "ms": 0
+          }
+        ]
+      }
+    }
   }
 ]
