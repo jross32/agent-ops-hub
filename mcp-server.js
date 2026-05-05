@@ -7279,6 +7279,97 @@ OUTPUT FORMAT:
   return `Unknown prompt: ${name}`;
 }
 
+// ── Chat history & MCP server scan helpers ───────────────────────────────
+
+const chatHistoryDir = path.join(__dirname, 'artifacts', 'chat-history');
+if (!fs.existsSync(chatHistoryDir)) fs.mkdirSync(chatHistoryDir, { recursive: true });
+
+let _mcpServerCache = null;
+let _mcpServerCacheTime = 0;
+const MCP_CACHE_TTL = 30000;
+
+async function scanMcpServers() {
+  if (_mcpServerCache && (Date.now() - _mcpServerCacheTime) < MCP_CACHE_TTL) return _mcpServerCache;
+  const results = [];
+  let dirs;
+  try {
+    dirs = fs.readdirSync(DEFAULT_MCP_ROOT, { withFileTypes: true })
+      .filter(d => d.isDirectory()).map(d => d.name);
+  } catch (_) { return []; }
+
+  for (const dir of dirs) {
+    const dirPath = path.join(DEFAULT_MCP_ROOT, dir);
+    const entry = { name: dir, dir: dirPath, description: '', version: null, port: null, running: false, tools: null, hasMcpServer: false };
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dirPath, 'package.json'), 'utf8'));
+      entry.name = pkg.name || dir;
+      entry.version = pkg.version || null;
+      entry.description = pkg.description || '';
+      const scripts = JSON.stringify(pkg.scripts || {});
+      const pm = scripts.match(/--port[=\s]+(\d+)|:(\d{4,5})\b/);
+      if (pm) entry.port = parseInt(pm[1] || pm[2]);
+    } catch (_) {}
+    if (fs.existsSync(path.join(dirPath, 'mcp-server.js'))) {
+      entry.hasMcpServer = true;
+      if (!entry.port) {
+        try {
+          const src = fs.readFileSync(path.join(dirPath, 'mcp-server.js'), 'utf8');
+          const pm = src.match(/HTTP_PORT\s*=\s*(\d+)|const\s+PORT\s*=\s*(\d+)/);
+          if (pm) entry.port = parseInt(pm[1] || pm[2]);
+        } catch (_) {}
+      }
+    }
+    if (entry.port) {
+      await new Promise(resolve => {
+        const req2 = http.get(`http://127.0.0.1:${entry.port}/health`, { timeout: 1500 }, (r2) => {
+          let body = ''; r2.on('data', c => body += c);
+          r2.on('end', () => {
+            try {
+              const h = JSON.parse(body);
+              entry.running = true;
+              if (h.tools !== undefined) entry.tools = h.tools;
+              if (h.version) entry.version = h.version;
+            } catch (_) { entry.running = true; }
+            resolve();
+          });
+        });
+        req2.on('error', () => resolve());
+        req2.on('timeout', () => { req2.destroy(); resolve(); });
+      });
+    }
+    if (entry.hasMcpServer) results.push(entry);
+  }
+  _mcpServerCache = results;
+  _mcpServerCacheTime = Date.now();
+  return results;
+}
+
+function proxyJsonPost(targetUrl, body) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = JSON.stringify(body);
+    const urlObj = new URL(targetUrl);
+    const mod = urlObj.protocol === 'https:' ? https : http;
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: urlObj.pathname + urlObj.search,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) },
+      timeout: 30000,
+    };
+    const req2 = mod.request(options, (r2) => {
+      let data = ''; r2.on('data', c => data += c);
+      r2.on('end', () => {
+        try { resolve({ status: r2.statusCode, body: JSON.parse(data) }); }
+        catch (_) { resolve({ status: r2.statusCode, body: data }); }
+      });
+    });
+    req2.on('error', reject);
+    req2.on('timeout', () => { req2.destroy(); reject(new Error('Request timed out')); });
+    req2.write(bodyStr); req2.end();
+  });
+}
+
 // ── HTTP server ──────────────────────────────────────────────────────────
 
 const httpServer = http.createServer((req, res) => {
@@ -7430,8 +7521,101 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/mcp-servers' && method === 'GET') {
+    scanMcpServers().then(servers => {
+      res.writeHead(200);
+      res.end(JSON.stringify({ servers, count: servers.length, cachedAt: _mcpServerCacheTime }));
+    }).catch(e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+    return;
+  }
+
+  if (url === '/api/chat' && method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      let parsed;
+      try { parsed = JSON.parse(body); } catch (_) { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid JSON' })); return; }
+      const { message, chatId } = parsed;
+      if (!message || !String(message).trim()) { res.writeHead(400); res.end(JSON.stringify({ error: 'message is required' })); return; }
+      const sessionId = chatId || `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      try {
+        const result = await proxyJsonPost('http://localhost:12345/api/ai/chat', {
+          question: String(message).trim(),
+          source: 'url',
+          url: 'http://127.0.0.1:11200/events/recent',
+          maxPages: 1,
+        });
+        const replyBody = result.body;
+        const reply = (typeof replyBody === 'object' ? replyBody.answer : null)
+          || (typeof replyBody === 'object' ? replyBody.error : null)
+          || String(replyBody).slice(0, 1000);
+        const histPath = path.join(chatHistoryDir, `${sessionId}.json`);
+        let history = [];
+        if (fs.existsSync(histPath)) { try { history = JSON.parse(fs.readFileSync(histPath, 'utf8')); } catch (_) {} }
+        const ts = new Date().toISOString();
+        history.push({ role: 'user', content: String(message).trim(), ts });
+        history.push({ role: 'assistant', content: reply, ts: new Date().toISOString() });
+        fs.writeFileSync(histPath, JSON.stringify(history, null, 2));
+        res.writeHead(200);
+        res.end(JSON.stringify({ reply, chatId: sessionId, ts, findings: (replyBody.findings || []) }));
+      } catch (e) {
+        res.writeHead(502);
+        res.end(JSON.stringify({ error: e.message, code: 'proxy_failed' }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/chat/history' && method === 'GET') {
+    try {
+      if (!fs.existsSync(chatHistoryDir)) { res.writeHead(200); res.end(JSON.stringify({ sessions: [] })); return; }
+      const files = fs.readdirSync(chatHistoryDir).filter(f => f.endsWith('.json'));
+      const sessions = files.map(f => {
+        const cid = f.replace('.json', '');
+        try {
+          const history = JSON.parse(fs.readFileSync(path.join(chatHistoryDir, f), 'utf8'));
+          const last = history[history.length - 1];
+          const firstUser = history.find(m => m.role === 'user');
+          return { chatId: cid, messageCount: history.length, lastActivity: last?.ts, preview: (firstUser?.content || '').slice(0, 60) };
+        } catch (_) { return { chatId: cid, messageCount: 0, lastActivity: null, preview: '' }; }
+      }).sort((a, b) => (b.lastActivity || '') > (a.lastActivity || '') ? 1 : -1);
+      res.writeHead(200);
+      res.end(JSON.stringify({ sessions, count: sessions.length }));
+    } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  if (url.startsWith('/api/chat/history/') && method === 'GET') {
+    const chatId = url.slice('/api/chat/history/'.length).replace(/[^a-zA-Z0-9\-_]/g, '');
+    if (!chatId) { res.writeHead(400); res.end(JSON.stringify({ error: 'chatId required' })); return; }
+    const histPath = path.join(chatHistoryDir, `${chatId}.json`);
+    if (!fs.existsSync(histPath)) { res.writeHead(404); res.end(JSON.stringify({ error: 'Session not found' })); return; }
+    try {
+      const history = JSON.parse(fs.readFileSync(histPath, 'utf8'));
+      res.writeHead(200);
+      res.end(JSON.stringify({ chatId, messages: history, count: history.length }));
+    } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  if (url === '/api/sprint-history' && method === 'GET') {
+    const sprintEvents = eventRingBuffer.filter(e => ['sprint_start','sprint_complete','evaluation_result'].includes(e.type));
+    const sprints = {};
+    for (const evt of sprintEvents) {
+      const sid = evt.data.sprintId || 'unknown';
+      if (!sprints[sid]) sprints[sid] = { sprintId: sid, ts: evt.data.ts, events: [] };
+      sprints[sid].events.push({ type: evt.type, ts: evt.data.ts });
+      if (evt.type === 'sprint_complete') Object.assign(sprints[sid], { sprintName: evt.data.sprintName, taskCount: evt.data.taskCount, dispatchedCount: evt.data.dispatchedCount });
+      if (evt.type === 'evaluation_result') { sprints[sid].grade = evt.data.grade; sprints[sid].overallScore = evt.data.overallScore; }
+    }
+    const list = Object.values(sprints).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    res.writeHead(200);
+    res.end(JSON.stringify({ sprints: list, count: list.length }));
+    return;
+  }
+
   res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/', '/health', '/mcp', '/stream', '/events/recent', '/api/test-results', '/api/ai-benchmarks'] }));
+  res.end(JSON.stringify({ error: 'Not found', endpoints: ['/', '/health', '/mcp', '/stream', '/events/recent', '/api/test-results', '/api/ai-benchmarks', '/api/mcp-servers', '/api/chat', '/api/chat/history', '/api/sprint-history'] }));
 });
 
 httpServer.listen(HTTP_PORT, '127.0.0.1', () => {

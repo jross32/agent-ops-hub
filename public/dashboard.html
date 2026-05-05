@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>agent-ops-hub — Live Dashboard</title>
+  <title>agent-ops-hub</title>
   <style>
     :root {
       --bg:         #0d1117;
@@ -25,6 +25,9 @@
       --purple:     #bc8cff;
       --purple-bg:  rgba(188,140,255,0.12);
       --pink:       #ff7b72;
+      --act-w:      48px;
+      --exp-w:      240px;
+      --panel-w:    320px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,7 +35,7 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+      font-family: 'JetBrains Mono','Cascadia Code','Fira Code',ui-monospace,monospace;
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -40,155 +43,189 @@
       font-size: 13px;
     }
 
-    /* ── TOPBAR ─────────────────────────────────────── */
+    /* ── TOPBAR ─────────────────────────────────── */
     .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 18px;
-      height: 48px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; height: 46px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; z-index: 10;
     }
     .topbar-left  { display: flex; align-items: center; gap: 10px; }
-    .topbar-mid   { display: flex; align-items: center; gap: 22px; }
+    .topbar-mid   { display: flex; align-items: center; gap: 18px; }
     .topbar-right { display: flex; align-items: center; gap: 8px; }
 
-    .logo { font-size: 15px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo { font-size: 14px; font-weight: 700; letter-spacing: -0.5px; }
     .logo-hex { color: var(--accent); }
 
-    .conn-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--dim); flex-shrink: 0;
-      transition: background 0.3s, box-shadow 0.3s;
-    }
-    .conn-dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); animation: dot-pulse 2.5s ease-in-out infinite; }
-    .conn-dot.err { background: var(--red);   box-shadow: 0 0 6px var(--red); }
-
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
+    .conn-dot.on  { background: var(--green);  box-shadow: 0 0 6px var(--green);  animation: dot-pulse 2.5s ease-in-out infinite; }
+    .conn-dot.err { background: var(--red);    box-shadow: 0 0 6px var(--red); }
     .conn-label { font-size: 11px; color: var(--dim); }
-
-    .stat { font-size: 12px; color: var(--dim); }
+    .stat { font-size: 11px; color: var(--dim); }
     .stat b { color: var(--text); font-weight: 600; }
-
-    .pill {
-      font-size: 11px; font-weight: 700;
-      padding: 2px 9px; border-radius: 99px;
-      border: 1px solid var(--border);
-    }
-    .pill-ver { color: var(--accent); border-color: var(--accent); }
+    .pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border); }
+    .pill-ver  { color: var(--accent); border-color: var(--accent); }
     .pill-port { color: var(--dim); }
 
-    /* ── LAYOUT ─────────────────────────────────────── */
-    .layout {
-      display: grid;
-      grid-template-columns: 260px 1fr 300px;
-      flex: 1;
-      overflow: hidden;
-    }
-    .col {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border-right: 1px solid var(--border);
-    }
-    .col:last-child { border-right: none; }
+    /* ── MAIN LAYOUT ────────────────────────────── */
+    .app-body { display: flex; flex: 1; overflow: hidden; }
 
-    .col-head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 11px 14px 9px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+    /* ── ACTIVITY BAR ───────────────────────────── */
+    .activity-bar {
+      width: var(--act-w); flex-shrink: 0;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 8px 0; gap: 2px;
     }
-    .col-title {
+    .act-btn {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: none; border: none; color: var(--dim);
+      font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      position: relative;
+    }
+    .act-btn:hover { background: var(--surface2); color: var(--text); }
+    .act-btn.active { color: var(--accent); background: var(--accent-bg); }
+    .act-btn[title]:hover::after {
+      content: attr(title); position: absolute; left: calc(100% + 8px);
+      background: var(--surface3); color: var(--text);
+      font-size: 11px; padding: 3px 7px; border-radius: 4px;
+      white-space: nowrap; pointer-events: none; z-index: 100;
+      border: 1px solid var(--border);
+    }
+    .act-sep { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ── EXPLORER COL ───────────────────────────── */
+    .explorer-col {
+      width: var(--exp-w); flex-shrink: 0;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: width 0.2s;
+    }
+    .explorer-col.hidden { width: 0; overflow: hidden; }
+
+    .exp-section { flex-shrink: 0; }
+    .exp-section-head {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 10px 5px 12px; cursor: pointer;
+      user-select: none;
+      transition: background 0.1s;
+    }
+    .exp-section-head:hover { background: var(--surface2); }
+    .exp-chevron {
+      font-size: 9px; color: var(--dim); flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+    .exp-section.collapsed .exp-chevron { transform: rotate(-90deg); }
+    .exp-section-title {
       font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 1.2px;
-      color: var(--dim);
+      text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim);
+      flex: 1;
     }
-
-    /* ── SPRINT FEED ─────────────────────────────────── */
-    .sprint-col { background: var(--surface); }
-    .sprint-scroll { flex: 1; overflow-y: auto; padding: 8px; }
-
-    .sprint-empty { color: var(--dim); font-size: 12px; padding: 24px 12px; text-align: center; opacity: 0.7; }
-
-    .sprint-card {
-      padding: 10px 11px; border-radius: 8px; margin-bottom: 5px;
-      background: var(--surface2); border: 1px solid var(--border);
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      animation: fade-up 0.25s ease-out;
+    .exp-section-count {
+      font-size: 10px; color: var(--dim); opacity: 0.6;
     }
-    .sprint-card:hover  { border-color: var(--border2); background: var(--surface3); }
-    .sprint-card.active { border-color: var(--accent);  background: var(--accent-bg); }
+    .exp-section-body { overflow: hidden; }
+    .exp-section.collapsed .exp-section-body { display: none; }
 
-    .sc-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
-    .sc-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
-    .sc-score { font-size: 17px; font-weight: 800; color: var(--text); margin: 2px 0; }
-    .sc-meta  { font-size: 10px; color: var(--dim); }
-
-    .grade-badge {
-      font-size: 10px; font-weight: 800;
-      padding: 1px 6px; border-radius: 4px;
+    .exp-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 12px 5px 22px; cursor: pointer; font-size: 12px;
+      transition: background 0.1s; border-radius: 0;
+      white-space: nowrap; overflow: hidden;
+    }
+    .exp-item:hover { background: var(--surface2); }
+    .exp-item.active { background: var(--accent-bg); color: var(--accent); }
+    .exp-item-icon { font-size: 11px; flex-shrink: 0; }
+    .exp-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+    .exp-item-badge {
+      font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
       flex-shrink: 0;
     }
-    .gb-A { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green);  }
+    .exp-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--dim); }
+    .exp-dot.on  { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .exp-dot.err { background: var(--red); }
+
+    .exp-empty { font-size: 11px; color: var(--dim); padding: 8px 22px; opacity: 0.6; }
+    .exp-loading { font-size: 11px; color: var(--dim); padding: 8px 22px; animation: flash 1s ease-in-out infinite; }
+
+    .quick-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 12px 6px 22px; cursor: pointer; font-size: 12px;
+      background: none; border: none; color: var(--dim); font-family: inherit;
+      width: 100%; text-align: left;
+      transition: background 0.1s, color 0.1s;
+    }
+    .quick-btn:hover { background: var(--surface2); color: var(--text); }
+    .quick-btn-icon { font-size: 12px; }
+
+    /* Grade badges */
+    .gb-A { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green); }
     .gb-B { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); }
     .gb-C { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange); }
-    .gb-D { background: var(--red-bg);    color: var(--pink);   border: 1px solid var(--pink);   }
-    .gb-F { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red);    }
+    .gb-D { background: var(--red-bg);    color: var(--pink);   border: 1px solid var(--pink); }
+    .gb-F { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red); }
+    .gb-Q { background: var(--surface2);  color: var(--dim);    border: 1px solid var(--border); }
 
-    /* ── WORKER CENTER ───────────────────────────────── */
-    .worker-col { background: var(--bg); }
-    .worker-badge { font-size: 10px; color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+    /* ── CENTER VIEW COL ────────────────────────── */
+    .view-col { flex: 1; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
+    /* Context bar */
+    .ctx-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 14px; height: 38px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .ctx-back {
+      background: none; border: 1px solid var(--border); color: var(--dim);
+      font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+      font-family: inherit; display: flex; align-items: center; gap: 4px;
+    }
+    .ctx-back:hover { color: var(--text); border-color: var(--border2); }
+    .ctx-back.hidden { display: none; }
+    .ctx-crumb { font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 5px; }
+    .ctx-crumb-sep { opacity: 0.4; }
+    .ctx-crumb-cur { color: var(--text); }
+    .ctx-spacer { flex: 1; }
+    .ctx-badge { font-size: 10px; color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+
+    /* View content */
+    .view-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* Workers view */
+    .view-workers { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
     .worker-scroll { flex: 1; overflow-y: auto; padding: 14px; }
-    .worker-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
-      gap: 11px;
-    }
-
-    .worker-ph {
-      grid-column: 1/-1;
-      text-align: center; padding: 60px 20px; color: var(--dim);
-    }
+    .worker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 11px; }
+    .worker-ph { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--dim); }
     .worker-ph-icon { font-size: 36px; margin-bottom: 14px; opacity: 0.25; }
     .worker-ph-text { font-size: 12px; opacity: 0.6; line-height: 1.6; }
 
-    /* Worker card */
+    /* Worker cards */
     .wcard {
       border-radius: 10px; padding: 13px 13px 11px;
       background: var(--surface); border: 1px solid var(--border);
-      position: relative; overflow: hidden;
+      position: relative; overflow: hidden; cursor: pointer;
       animation: card-in 0.3s ease-out;
-      transition: border-color 0.4s, box-shadow 0.4s;
+      transition: border-color 0.4s, box-shadow 0.4s, transform 0.15s;
     }
-    .wcard.spawning { border-color: var(--accent); box-shadow: 0 0 0 0 var(--accent-bg); animation: card-in 0.3s ease-out, pulse-border 1.8s ease-in-out infinite; }
+    .wcard:hover { border-color: var(--border2) !important; transform: translateY(-1px); }
+    .wcard.working:hover,.wcard.spawning:hover { border-color: var(--accent) !important; }
+    .wcard.spawning { border-color: var(--accent); animation: card-in 0.3s ease-out, pulse-border 1.8s ease-in-out infinite; }
     .wcard.working  { border-color: var(--accent); box-shadow: 0 0 14px var(--accent-bg); animation: card-in 0.3s ease-out, glow-accent 2s ease-in-out infinite; }
     .wcard.done     { border-color: var(--border2); }
-    .wcard.scored-A { border-color: var(--green);  box-shadow: 0 0 10px var(--green-bg);  }
+    .wcard.scored-A { border-color: var(--green);  box-shadow: 0 0 10px var(--green-bg); }
     .wcard.scored-B { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-bg); }
     .wcard.scored-C { border-color: var(--orange); box-shadow: 0 0 10px var(--orange-bg); }
-    .wcard.scored-D,
-    .wcard.scored-F { border-color: var(--red);    box-shadow: 0 0 10px var(--red-bg);    }
+    .wcard.scored-D,.wcard.scored-F { border-color: var(--red); box-shadow: 0 0 10px var(--red-bg); }
 
     .wcard-emoji-wrap { text-align: center; margin-bottom: 9px; position: relative; display: inline-block; width: 100%; }
     .wcard-emoji { font-size: 26px; display: inline-block; position: relative; }
-    .spin-ring {
-      position: absolute; top: -5px; right: -5px; bottom: -5px; left: -5px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      border-top-color: transparent;
-      pointer-events: none;
-    }
-    .wcard.working  .spin-ring { border-top-color: var(--accent); animation: spin 1.2s linear infinite; }
-    .wcard.scored-A .spin-ring { border-top-color: var(--green); }
-    .wcard.scored-B .spin-ring { border-top-color: var(--accent); }
-
+    .spin-ring { position: absolute; top: -5px; right: -5px; bottom: -5px; left: -5px; border-radius: 50%; border: 2px solid transparent; pointer-events: none; }
+    .wcard.working .spin-ring { border-top-color: var(--accent); animation: spin 1.2s linear infinite; }
     .wcard-id   { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
     .wcard-task { font-size: 11px; color: var(--text); line-height: 1.45; margin-bottom: 8px; min-height: 30px; }
-
     .wcard-status { display: flex; align-items: center; gap: 6px; font-size: 10px; }
     .wstatus-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--dim); }
     .wcard.spawning .wstatus-dot { background: var(--accent); animation: dot-pulse 1.0s infinite; }
@@ -196,65 +233,105 @@
     .wcard.scored-A .wstatus-dot { background: var(--green); }
     .wcard.scored-B .wstatus-dot { background: var(--accent); }
     .wcard.scored-C .wstatus-dot { background: var(--orange); }
-    .wcard.scored-D .wstatus-dot,
-    .wcard.scored-F .wstatus-dot { background: var(--red); }
-
+    .wcard.scored-D .wstatus-dot,.wcard.scored-F .wstatus-dot { background: var(--red); }
     .wstatus-label { color: var(--dim); }
     .wcard.working .wstatus-label { color: var(--accent); }
-
     .thinking-dots { display: inline-flex; gap: 2px; }
     .thinking-dots span { width: 3px; height: 3px; border-radius: 50%; background: var(--accent); animation: bounce 1.1s ease-in-out infinite; }
     .thinking-dots span:nth-child(2) { animation-delay: 0.18s; }
     .thinking-dots span:nth-child(3) { animation-delay: 0.36s; }
-
-    .wcard-score {
-      position: absolute; top: 9px; right: 9px;
-      font-size: 12px; font-weight: 800;
-      padding: 2px 6px; border-radius: 5px;
-      animation: score-pop 0.4s ease-out;
-    }
-    .ws-A { background: var(--green-bg);  color: var(--green);  }
+    .wcard-score { position: absolute; top: 9px; right: 9px; font-size: 12px; font-weight: 800; padding: 2px 6px; border-radius: 5px; animation: score-pop 0.4s ease-out; }
+    .ws-A { background: var(--green-bg);  color: var(--green); }
     .ws-B { background: var(--accent-bg); color: var(--accent); }
     .ws-C { background: var(--orange-bg); color: var(--orange); }
-    .ws-D,
-    .ws-F { background: var(--red-bg);    color: var(--red);    }
+    .ws-D,.ws-F { background: var(--red-bg); color: var(--red); }
 
     /* Score bar */
-    .score-bar-section {
-      border-top: 1px solid var(--border);
-      padding: 12px 14px;
-      flex-shrink: 0;
-      display: none;
-    }
+    .score-bar-section { border-top: 1px solid var(--border); padding: 12px 14px; flex-shrink: 0; display: none; }
     .score-bar-section.visible { display: flex; align-items: center; gap: 14px; }
-
     .score-num { font-size: 36px; font-weight: 800; line-height: 1; }
-    .score-num.c-A { color: var(--green);  }
+    .score-num.c-A { color: var(--green); }
     .score-num.c-B { color: var(--accent); }
     .score-num.c-C { color: var(--orange); }
-    .score-num.c-D,
-    .score-num.c-F { color: var(--red);    }
-
+    .score-num.c-D,.score-num.c-F { color: var(--red); }
     .score-right { flex: 1; }
     .score-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); margin-bottom: 5px; }
     .score-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
     .score-fill  { height: 100%; border-radius: 3px; transition: width 1.2s ease-out; width: 0%; }
-    .sf-A { background: var(--green);  }
-    .sf-B { background: var(--accent); }
-    .sf-C { background: var(--orange); }
-    .sf-D,
-    .sf-F { background: var(--red);    }
+    .sf-A { background: var(--green); } .sf-B { background: var(--accent); } .sf-C { background: var(--orange); }
+    .sf-D,.sf-F { background: var(--red); }
     .score-rec { font-size: 10px; color: var(--dim); margin-top: 5px; line-height: 1.5; }
 
-    /* ── EVENT LOG ───────────────────────────────────── */
-    .log-col { background: var(--surface); }
-    .log-scroll { flex: 1; overflow-y: auto; padding: 6px; }
+    /* Sprint detail view */
+    .view-sprint-detail { flex: 1; overflow-y: auto; padding: 18px; }
+    .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+    .detail-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .detail-field { background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
+    .detail-field-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--dim); margin-bottom: 3px; }
+    .detail-field-val { font-size: 12px; color: var(--text); }
+    .detail-worker-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--surface2); margin-bottom: 4px; cursor: pointer; }
+    .detail-worker-row:hover { background: var(--surface3); }
 
+    /* MCP server view */
+    .view-mcp-server { flex: 1; overflow-y: auto; padding: 18px; }
+    .server-hero { display: flex; align-items: flex-start; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+    .server-icon { font-size: 32px; }
+    .server-hero-info { flex: 1; }
+    .server-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .server-desc { font-size: 12px; color: var(--dim); line-height: 1.5; margin-bottom: 8px; }
+    .server-status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .server-stat-chip { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; color: var(--dim); }
+    .server-stat-chip b { color: var(--text); }
+    .server-running { color: var(--green); border-color: var(--green); background: var(--green-bg); }
+    .server-stopped { color: var(--dim); }
+
+    /* ── RIGHT PANEL COL ────────────────────────── */
+    .panel-col {
+      width: var(--panel-w); flex-shrink: 0;
+      background: var(--surface); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* Tab bar */
+    .tab-bar {
+      display: flex; align-items: center;
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+      background: var(--surface);
+    }
+    .tab-btn {
+      flex: 1; padding: 9px 10px 8px; font-size: 11px; font-weight: 600;
+      color: var(--dim); background: none; border: none; cursor: pointer;
+      font-family: inherit; border-bottom: 2px solid transparent;
+      transition: color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .tab-panel.active { display: flex; }
+
+    /* Event filter pills */
+    .filter-row {
+      display: flex; align-items: center; gap: 5px; padding: 7px 10px;
+      border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+    }
+    .filter-pill {
+      font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px;
+      background: none; border: 1px solid var(--border); color: var(--dim);
+      cursor: pointer; font-family: inherit;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .filter-pill:hover { color: var(--text); border-color: var(--border2); }
+    .filter-pill.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+    /* Event log */
+    .log-scroll { flex: 1; overflow-y: auto; padding: 4px; }
     .log-entry {
       display: flex; align-items: flex-start; gap: 7px;
       padding: 5px 8px; border-radius: 5px; margin-bottom: 1px;
-      font-size: 11px; line-height: 1.45;
+      font-size: 11px; line-height: 1.45; cursor: pointer;
       animation: log-in 0.18s ease-out;
+      transition: background 0.1s;
     }
     .log-entry:hover { background: var(--surface2); }
     .log-icon { flex-shrink: 0; font-size: 12px; margin-top: 1px; }
@@ -262,79 +339,116 @@
     .log-type { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 1px; }
     .log-msg  { color: var(--dim); word-break: break-all; }
     .log-ts   { font-size: 9px; color: var(--dim); flex-shrink: 0; opacity: 0.55; }
-
-    .lt-tool_call         .log-type { color: var(--dim); }
-    .lt-worker_spawned    .log-type { color: var(--accent); }
-    .lt-sprint_start      .log-type { color: var(--purple); }
-    .lt-sprint_complete   .log-type { color: var(--green); }
-    .lt-evaluation_result .log-type { color: var(--purple); }
+    .lt-tool_call          .log-type { color: var(--dim); }
+    .lt-worker_spawned     .log-type { color: var(--accent); }
+    .lt-sprint_start       .log-type { color: var(--purple); }
+    .lt-sprint_complete    .log-type { color: var(--green); }
+    .lt-evaluation_result  .log-type { color: var(--purple); }
     .lt-synthesis_complete .log-type { color: var(--orange); }
-    .lt-system            .log-type { color: var(--green); }
-    .lt-error             .log-type { color: var(--red); }
+    .lt-system             .log-type { color: var(--green); }
+    .lt-error              .log-type { color: var(--red); }
+
+    .load-more-btn {
+      width: calc(100% - 16px); margin: 6px 8px; padding: 6px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 5px;
+      color: var(--dim); font-size: 11px; cursor: pointer; font-family: inherit;
+      transition: background 0.1s, color 0.1s;
+    }
+    .load-more-btn:hover { background: var(--surface3); color: var(--text); }
 
     .ai-status {
-      border-top: 1px solid var(--border);
-      padding: 8px 12px;
+      border-top: 1px solid var(--border); padding: 7px 12px;
       display: flex; align-items: center; gap: 8px;
-      font-size: 10px; color: var(--accent);
-      flex-shrink: 0; min-height: 34px;
+      font-size: 10px; color: var(--accent); flex-shrink: 0; min-height: 32px;
       transition: opacity 0.2s;
     }
     .ai-status.idle { opacity: 0; pointer-events: none; }
-    .ai-dots span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: bounce 1s ease-in-out infinite; }
     .ai-dots { display: flex; gap: 3px; }
+    .ai-dots span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: bounce 1s ease-in-out infinite; }
     .ai-dots span:nth-child(2) { animation-delay: 0.15s; }
     .ai-dots span:nth-child(3) { animation-delay: 0.3s; }
-    .ai-tool { color: var(--dim); margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+    .ai-tool { color: var(--dim); margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
 
-    /* ── TEST RESULTS PANEL ─────────────────────────── */
-    .test-panel { border-top: 1px solid var(--border); padding: 8px 12px 10px; flex-shrink: 0; }
-    .test-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-    .test-summary { font-size: 11px; color: var(--text); }
-    .test-summary .test-loading { color: var(--dim); }
-    .test-pass-line { display: flex; align-items: center; gap: 6px; }
-    .test-pass-line .badge-pass { color: var(--green); font-weight: 600; }
-    .test-pass-line .badge-fail { color: #f85149; font-weight: 600; }
-    .test-timestamp { color: var(--dim); font-size: 10px; margin-top: 2px; }
-    .test-failures { margin-top: 6px; max-height: 80px; overflow-y: auto; }
-    .test-fail-item { font-size: 10px; color: #f85149; padding: 2px 0; border-bottom: 1px solid var(--border); }
-    .test-fail-item:last-child { border-bottom: none; }
+    /* Chat panel */
+    .chat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .chat-session-sel {
+      font-size: 11px; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 4px; padding: 3px 6px; font-family: inherit;
+      max-width: 160px;
+    }
+    .chat-new-btn {
+      font-size: 11px; background: none; border: 1px solid var(--border); color: var(--dim);
+      border-radius: 4px; padding: 2px 7px; cursor: pointer; font-family: inherit;
+    }
+    .chat-new-btn:hover { color: var(--text); border-color: var(--border2); }
 
-    /* ── WORKER MODAL ───────────────────────────────── */
-    .wcard { cursor: pointer; }
-    .wcard:hover { border-color: var(--border2) !important; transform: translateY(-1px); transition: transform 0.15s, border-color 0.15s; }
-    .wcard.working:hover, .wcard.spawning:hover { border-color: var(--accent) !important; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 10px 10px 0; display: flex; flex-direction: column; gap: 8px; }
+    .chat-empty { text-align: center; color: var(--dim); font-size: 12px; padding: 30px 20px; opacity: 0.6; line-height: 1.6; }
 
+    .chat-bubble {
+      max-width: 88%; border-radius: 10px; padding: 8px 11px;
+      font-size: 12px; line-height: 1.55; word-break: break-word;
+      animation: bubble-in 0.2s ease-out;
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: var(--accent-bg); border: 1px solid var(--accent);
+      color: var(--text);
+    }
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .chat-bubble.thinking {
+      align-self: flex-start;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--dim);
+    }
+    .chat-bubble-ts { font-size: 9px; color: var(--dim); margin-top: 4px; opacity: 0.6; }
+
+    .chat-input-row {
+      display: flex; align-items: flex-end; gap: 6px;
+      padding: 8px 10px 10px; border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    .chat-input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 7px 10px;
+      font-size: 12px; font-family: inherit; resize: none; min-height: 34px; max-height: 100px;
+      transition: border-color 0.15s;
+    }
+    .chat-input:focus { outline: none; border-color: var(--accent); }
+    .chat-input::placeholder { color: var(--dim); }
+    .chat-send-btn {
+      width: 30px; height: 30px; border-radius: 6px; flex-shrink: 0;
+      background: var(--accent); border: none; color: #fff;
+      font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .chat-send-btn:hover { background: #79b8ff; }
+    .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── WORKER MODAL ───────────────────────────── */
     .worker-modal-overlay {
-      position: fixed; inset: 0; z-index: 1000;
+      position: fixed; inset: 0; z-index: 200;
       background: rgba(0,0,0,0.65);
       display: flex; align-items: center; justify-content: center;
       animation: fade-in-overlay 0.15s ease-out;
     }
     .worker-modal-overlay.closing { animation: fade-out-overlay 0.15s ease-in forwards; }
-
-    @keyframes fade-in-overlay  { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes fade-out-overlay { from { opacity: 1; } to { opacity: 0; } }
-    @keyframes modal-slide-in   { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
-
     .worker-modal {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0;
-      width: 480px; max-width: 96vw;
-      max-height: 80vh;
-      overflow: hidden;
-      display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      width: 480px; max-width: 96vw; max-height: 80vh;
+      overflow: hidden; display: flex; flex-direction: column;
       animation: modal-slide-in 0.18s ease-out;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
-
     .wm-header {
       display: flex; align-items: center; gap: 12px;
-      padding: 16px 18px 14px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+      padding: 16px 18px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
     .wm-emoji { font-size: 32px; }
     .wm-title-block { flex: 1; min-width: 0; }
@@ -344,80 +458,97 @@
       font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
       padding: 3px 8px; border-radius: 99px; margin-top: 4px;
     }
-    .wm-status-badge.spawning { background: var(--accent-bg); color: var(--accent); }
-    .wm-status-badge.working  { background: var(--accent-bg); color: var(--accent); }
-    .wm-status-badge.done     { background: var(--surface2); color: var(--dim); }
-    .wm-status-badge.scored   { background: var(--green-bg);  color: var(--green); }
-    .wm-status-badge.scored-F { background: var(--red-bg);    color: var(--red); }
-    .wm-close {
-      width: 28px; height: 28px; border-radius: 6px;
-      background: none; border: 1px solid var(--border);
-      color: var(--dim); font-size: 16px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
+    .wm-status-badge.spawning,.wm-status-badge.working { background: var(--accent-bg); color: var(--accent); }
+    .wm-status-badge.done { background: var(--surface2); color: var(--dim); }
+    .wm-status-badge.scored-A,.wm-status-badge.scored-B { background: var(--green-bg); color: var(--green); }
+    .wm-status-badge.scored-C { background: var(--orange-bg); color: var(--orange); }
+    .wm-status-badge.scored-D,.wm-status-badge.scored-F { background: var(--red-bg); color: var(--red); }
+    .wm-close { width: 28px; height: 28px; border-radius: 6px; background: none; border: 1px solid var(--border); color: var(--dim); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .wm-close:hover { background: var(--surface2); color: var(--text); }
-    .wm-grade-badge {
-      font-size: 20px; font-weight: 800;
-      padding: 4px 10px; border-radius: 8px;
-      margin-right: 6px;
-    }
-
+    .wm-grade-badge { font-size: 20px; font-weight: 800; padding: 4px 10px; border-radius: 8px; margin-right: 6px; }
     .wm-body { flex: 1; overflow-y: auto; padding: 16px 18px; }
-
     .wm-section { margin-bottom: 14px; }
     .wm-section:last-child { margin-bottom: 0; }
-    .wm-label {
-      font-size: 9px; font-weight: 700; color: var(--dim);
-      text-transform: uppercase; letter-spacing: 0.8px;
-      margin-bottom: 5px;
-    }
-    .wm-value {
-      font-size: 12px; color: var(--text);
-      line-height: 1.6;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px; padding: 8px 10px;
-      word-break: break-word;
-    }
+    .wm-label { font-size: 9px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; }
+    .wm-value { font-size: 12px; color: var(--text); line-height: 1.6; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; word-break: break-word; }
     .wm-value.short { padding: 4px 10px; font-size: 11px; }
     .wm-meta-row { display: flex; gap: 10px; }
     .wm-meta-row .wm-section { flex: 1; }
-
-    .wm-footer {
-      padding: 10px 18px;
-      border-top: 1px solid var(--border);
-      font-size: 10px; color: var(--dim);
-      display: flex; justify-content: space-between; align-items: center;
-      flex-shrink: 0;
-    }
-    .wm-live-dot {
-      width: 5px; height: 5px; border-radius: 50%;
-      background: var(--accent); animation: dot-pulse 0.8s infinite;
-      display: inline-block; margin-right: 4px;
-    }
+    .wm-footer { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 10px; color: var(--dim); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .wm-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: dot-pulse 0.8s infinite; display: inline-block; margin-right: 4px; }
     .wm-live-dot.done { background: var(--dim); animation: none; }
 
-    /* ── FOOTER ─────────────────────────────────────── */
+    /* ── EVENT DETAIL POPUP ─────────────────────── */
+    .evt-popup-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      animation: fade-in-overlay 0.12s ease-out;
+    }
+    .evt-popup-overlay.closing { animation: fade-out-overlay 0.12s ease-in forwards; }
+    .evt-popup {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      width: 440px; max-width: 96vw; max-height: 72vh;
+      overflow: hidden; display: flex; flex-direction: column;
+      animation: modal-slide-in 0.16s ease-out;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+    }
+    .evt-popup-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .evt-popup-icon { font-size: 18px; }
+    .evt-popup-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; flex: 1; }
+    .evt-popup-close { width: 24px; height: 24px; border-radius: 5px; background: none; border: 1px solid var(--border); color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .evt-popup-close:hover { color: var(--text); background: var(--surface2); }
+    .evt-popup-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+    .evt-field { margin-bottom: 8px; }
+    .evt-field-key { font-size: 9px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 2px; }
+    .evt-field-val { font-size: 11px; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; word-break: break-all; line-height: 1.5; }
+    .evt-popup-footer { padding: 8px 14px; border-top: 1px solid var(--border); font-size: 10px; color: var(--dim); flex-shrink: 0; }
+
+    /* ── TOAST ──────────────────────────────────── */
+    .toast-container { position: fixed; bottom: 36px; right: 14px; z-index: 500; display: flex; flex-direction: column-reverse; gap: 6px; pointer-events: none; }
+    .toast {
+      background: var(--surface3); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 8px 12px; font-size: 12px;
+      max-width: 280px; pointer-events: auto;
+      animation: toast-in 0.2s ease-out;
+    }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error   { border-color: var(--red);   color: var(--red);   }
+    .toast.info    { border-color: var(--accent); color: var(--accent); }
+    .toast.out     { animation: toast-out 0.2s ease-in forwards; }
+
+    /* ── FOOTER ─────────────────────────────────── */
     .footer {
-      height: 28px;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 14px;
-      background: var(--surface); border-top: 1px solid var(--border);
-      font-size: 10px; color: var(--dim);
-      flex-shrink: 0;
+      height: 26px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px; background: var(--surface); border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--dim); flex-shrink: 0;
     }
     .foot-conn { display: flex; align-items: center; gap: 6px; }
-    .foot-dot  { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
+    .foot-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); }
     .foot-dot.on { background: var(--green); }
 
-    /* ── CLEAR BTN ───────────────────────────────────── */
-    .clear-btn {
-      font-size: 10px; color: var(--dim); background: none;
-      border: 1px solid var(--border); border-radius: 4px;
-      padding: 2px 7px; cursor: pointer; font-family: inherit;
+    /* ── RESPONSIVE: tablet (<=900px) ──────────── */
+    @media (max-width: 900px) {
+      :root { --exp-w: 200px; --panel-w: 280px; }
+      .activity-bar { display: none; }
+      .topbar-mid .stat:nth-child(n+3) { display: none; }
     }
-    .clear-btn:hover { color: var(--text); border-color: var(--border2); }
+
+    /* ── RESPONSIVE: mobile (<=680px) ──────────── */
+    @media (max-width: 680px) {
+      :root { --exp-w: 100vw; --panel-w: 100vw; }
+      .app-body { flex-direction: column; }
+      .activity-bar { display: none; }
+      .explorer-col { width: 100%; height: auto; max-height: 220px; border-right: none; border-bottom: 1px solid var(--border); overflow-y: auto; }
+      .explorer-col.hidden { max-height: 0; overflow: hidden; }
+      .view-col { min-height: 200px; }
+      .panel-col { width: 100%; height: 260px; border-left: none; border-top: 1px solid var(--border); }
+      .topbar-mid { gap: 10px; }
+      .topbar-mid .stat:nth-child(n+2) { display: none; }
+    }
 
     /* Scrollbars */
     ::-webkit-scrollbar { width: 4px; }
@@ -425,16 +556,22 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
 
-    /* ── ANIMATIONS ──────────────────────────────────── */
-    @keyframes dot-pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
-    @keyframes glow-accent{ 0%,100%{box-shadow:0 0 8px var(--accent-bg)} 50%{box-shadow:0 0 22px rgba(88,166,255,.4)} }
+    /* ── ANIMATIONS ─────────────────────────────── */
+    @keyframes dot-pulse   { 0%,100%{opacity:1;transform:scale(1)}  50%{opacity:0.3;transform:scale(0.7)} }
+    @keyframes glow-accent { 0%,100%{box-shadow:0 0 8px var(--accent-bg)} 50%{box-shadow:0 0 22px rgba(88,166,255,.4)} }
     @keyframes pulse-border{ 0%,100%{box-shadow:0 0 0 0 transparent} 50%{box-shadow:0 0 0 3px var(--accent-bg)} }
     @keyframes spin        { to{transform:rotate(360deg)} }
     @keyframes bounce      { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
     @keyframes card-in     { from{opacity:0;transform:translateY(10px) scale(0.96)} to{opacity:1;transform:none} }
     @keyframes log-in      { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:none} }
-    @keyframes fade-up     { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
     @keyframes score-pop   { 0%{transform:scale(0.7);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+    @keyframes fade-in-overlay  { from{opacity:0} to{opacity:1} }
+    @keyframes fade-out-overlay { from{opacity:1} to{opacity:0} }
+    @keyframes modal-slide-in   { from{opacity:0;transform:translateY(14px) scale(0.97)} to{opacity:1;transform:none} }
+    @keyframes flash       { 0%,100%{opacity:0.6} 50%{opacity:1} }
+    @keyframes bubble-in   { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:none} }
+    @keyframes toast-in    { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+    @keyframes toast-out   { from{opacity:1;transform:none} to{opacity:0;transform:translateY(8px)} }
   </style>
 </head>
 <body>
@@ -442,15 +579,15 @@
 <!-- TOPBAR -->
 <header class="topbar">
   <div class="topbar-left">
-    <div class="logo"><span class="logo-hex">⬡</span> agent-ops-hub</div>
+    <div class="logo"><span class="logo-hex">&#x2B21;</span> agent-ops-hub</div>
     <div class="conn-dot" id="conn-dot"></div>
-    <span class="conn-label" id="conn-label">Connecting…</span>
+    <span class="conn-label" id="conn-label">Connecting&#x2026;</span>
   </div>
   <div class="topbar-mid">
-    <span class="stat">🔧 <b id="stat-calls">0</b> calls</span>
-    <span class="stat">⚡ <b id="stat-sprints">0</b> sprints</span>
-    <span class="stat">⏱ <b id="stat-uptime">--</b></span>
-    <span class="stat">👥 <b id="stat-clients">1</b> viewer</span>
+    <span class="stat">&#x1F527; <b id="stat-calls">0</b> calls</span>
+    <span class="stat">&#x26A1; <b id="stat-sprints">0</b> sprints</span>
+    <span class="stat">&#x23F1; <b id="stat-uptime">--</b></span>
+    <span class="stat">&#x1F465; <b id="stat-clients">1</b> viewer</span>
   </div>
   <div class="topbar-right">
     <span class="pill pill-ver" id="version-pill">v?</span>
@@ -458,88 +595,162 @@
   </div>
 </header>
 
-<!-- MAIN LAYOUT -->
-<div class="layout">
+<!-- APP BODY -->
+<div class="app-body">
 
-  <!-- LEFT: Sprint Feed -->
-  <aside class="col sprint-col">
-    <div class="col-head">
-      <span class="col-title">Sprint Feed</span>
-      <span class="stat" id="sprint-total" style="font-size:10px"></span>
+  <!-- ACTIVITY BAR -->
+  <nav class="activity-bar">
+    <button class="act-btn active" id="act-explorer" title="Explorer" onclick="toggleExplorer()">&#x1F4C1;</button>
+    <div class="act-sep"></div>
+    <button class="act-btn" id="act-servers" title="MCP Servers" onclick="actServers()">&#x1F50C;</button>
+  </nav>
+
+  <!-- EXPLORER -->
+  <aside class="explorer-col" id="explorer-col">
+
+    <div class="exp-section" id="sec-sprints">
+      <div class="exp-section-head" onclick="toggleSection('sec-sprints')">
+        <span class="exp-chevron">&#x25BE;</span>
+        <span class="exp-section-title">Sprint History</span>
+        <span class="exp-section-count" id="sprint-count"></span>
+      </div>
+      <div class="exp-section-body" id="sprint-list">
+        <div class="exp-empty" id="sprint-empty-exp">No sprints yet&#x2026;</div>
+      </div>
     </div>
-    <div class="sprint-scroll" id="sprint-scroll">
-      <div class="sprint-empty" id="sprint-empty">No sprints yet — waiting for activity…</div>
+
+    <div class="exp-section" id="sec-mcp">
+      <div class="exp-section-head" onclick="toggleSection('sec-mcp')">
+        <span class="exp-chevron">&#x25BE;</span>
+        <span class="exp-section-title">MCP Servers</span>
+        <span class="exp-section-count" id="mcp-count"></span>
+      </div>
+      <div class="exp-section-body" id="mcp-list">
+        <div class="exp-loading" id="mcp-loading">Scanning&#x2026;</div>
+      </div>
     </div>
+
+    <div class="exp-section" id="sec-quick">
+      <div class="exp-section-head" onclick="toggleSection('sec-quick')">
+        <span class="exp-chevron">&#x25BE;</span>
+        <span class="exp-section-title">Quick Actions</span>
+      </div>
+      <div class="exp-section-body">
+        <button class="quick-btn" onclick="runBenchmark()"><span class="quick-btn-icon">&#x1F9EA;</span> Run AI Benchmark</button>
+        <button class="quick-btn" onclick="refreshTests()"><span class="quick-btn-icon">&#x21BB;</span> Refresh Tests</button>
+        <button class="quick-btn" onclick="clearEvents()"><span class="quick-btn-icon">&#x1F5D1;</span> Clear Events</button>
+        <button class="quick-btn" onclick="refreshMcpServers()"><span class="quick-btn-icon">&#x1F504;</span> Rescan Servers</button>
+      </div>
+    </div>
+
   </aside>
 
-  <!-- CENTER: Worker Grid -->
-  <main class="col worker-col">
-    <div class="col-head">
-      <span class="col-title">Active Workers</span>
-      <span class="worker-badge" id="active-badge"></span>
+  <!-- CENTER VIEW -->
+  <main class="view-col">
+    <div class="ctx-bar">
+      <button class="ctx-back hidden" id="ctx-back" onclick="backToWorkers()">&#x2190; Back</button>
+      <div class="ctx-crumb" id="ctx-crumb">
+        <span>agent-ops-hub</span>
+        <span class="ctx-crumb-sep">&#x203A;</span>
+        <span class="ctx-crumb-cur" id="ctx-crumb-cur">Active Workers</span>
+      </div>
+      <div class="ctx-spacer"></div>
+      <span class="ctx-badge" id="active-badge"></span>
     </div>
-    <div class="worker-scroll">
-      <div class="worker-grid" id="worker-grid">
-        <div class="worker-ph">
-          <div class="worker-ph-icon">⬡</div>
-          <div class="worker-ph-text">Waiting for a sprint to start…<br>Call run_parallel_specialist_sprint to see workers here.</div>
+
+    <div class="view-content">
+
+      <!-- Workers (default) -->
+      <div class="view-workers" id="view-workers">
+        <div class="worker-scroll">
+          <div class="worker-grid" id="worker-grid">
+            <div class="worker-ph">
+              <div class="worker-ph-icon">&#x2B21;</div>
+              <div class="worker-ph-text">Waiting for a sprint to start&#x2026;<br>Call run_parallel_specialist_sprint to see workers here.</div>
+            </div>
+          </div>
+        </div>
+        <div class="score-bar-section" id="score-section">
+          <div>
+            <div class="score-num" id="score-num">--</div>
+            <div style="font-size:9px;color:var(--dim);margin-top:2px">overall score</div>
+          </div>
+          <div class="score-right">
+            <div class="score-meta">
+              <span id="score-tasks">--</span>
+              <span id="score-grade">--</span>
+            </div>
+            <div class="score-track"><div class="score-fill" id="score-fill"></div></div>
+            <div class="score-rec" id="score-rec"></div>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="score-bar-section" id="score-section">
-      <div>
-        <div class="score-num" id="score-num">--</div>
-        <div style="font-size:9px;color:var(--dim);margin-top:2px;">overall score</div>
-      </div>
-      <div class="score-right">
-        <div class="score-meta">
-          <span id="score-tasks">--</span>
-          <span id="score-grade">--</span>
-        </div>
-        <div class="score-track"><div class="score-fill" id="score-fill"></div></div>
-        <div class="score-rec" id="score-rec"></div>
-      </div>
+
+      <!-- Sprint detail -->
+      <div class="view-sprint-detail" id="view-sprint-detail" style="display:none"></div>
+
+      <!-- MCP server detail -->
+      <div class="view-mcp-server" id="view-mcp-server" style="display:none"></div>
+
     </div>
   </main>
 
-  <!-- RIGHT: Event Log -->
-  <aside class="col log-col">
-    <div class="col-head">
-      <span class="col-title">Live Events</span>
-      <button class="clear-btn" id="clear-btn">Clear</button>
+  <!-- RIGHT PANEL -->
+  <aside class="panel-col">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-events-btn" onclick="switchTab('events')">&#x26A1; Live Events</button>
+      <button class="tab-btn"        id="tab-chat-btn"   onclick="switchTab('chat')">&#x1F4AC; Chat</button>
     </div>
-    <div class="log-scroll" id="log-scroll"></div>
-    <div class="ai-status idle" id="ai-status">
-      <div class="ai-dots"><span></span><span></span><span></span></div>
-      <span>AI processing</span>
-      <span class="ai-tool" id="ai-tool"></span>
-    </div>
-    <!-- TEST RESULTS PANEL -->
-    <div class="test-panel" id="test-panel">
-      <div class="test-panel-head">
-        <span class="col-title" style="font-size:11px">Test Results</span>
-        <button class="clear-btn" id="test-refresh-btn" title="Refresh test results">↻</button>
-      </div>
-      <div class="test-summary" id="test-summary">
-        <span class="test-loading">Loading…</span>
-      </div>
-      <div class="test-failures" id="test-failures"></div>
-    </div>
-  </aside>
 
+    <!-- EVENTS TAB -->
+    <div class="tab-panel active" id="tab-events">
+      <div class="filter-row">
+        <button class="filter-pill active" onclick="setFilter('all',this)">All</button>
+        <button class="filter-pill" onclick="setFilter('tool_call',this)">&#x1F527; Tools</button>
+        <button class="filter-pill" onclick="setFilter('worker',this)">&#x26A1; Workers</button>
+        <button class="filter-pill" onclick="setFilter('sprint',this)">&#x1F535; Sprints</button>
+        <button class="filter-pill" onclick="setFilter('error',this)">&#x274C; Errors</button>
+      </div>
+      <div class="log-scroll" id="log-scroll"></div>
+      <button class="load-more-btn" onclick="loadMoreEvents()">Load more&#x2026;</button>
+      <div class="ai-status idle" id="ai-status">
+        <div class="ai-dots"><span></span><span></span><span></span></div>
+        <span>AI processing</span>
+        <span class="ai-tool" id="ai-tool"></span>
+      </div>
+    </div>
+
+    <!-- CHAT TAB -->
+    <div class="tab-panel" id="tab-chat">
+      <div class="chat-header">
+        <select class="chat-session-sel" id="chat-session-sel" onchange="loadChatSession(this.value)">
+          <option value="">&#x2014; New chat &#x2014;</option>
+        </select>
+        <button class="chat-new-btn" onclick="newChatSession()">+ New</button>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-empty" id="chat-empty">Ask anything about the ops hub&#x2026;<br><br>Powered by Claude2 AI at localhost:12345</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chat-input" placeholder="Ask about recent activity&#x2026;" rows="1" onkeydown="chatKeydown(event)"></textarea>
+        <button class="chat-send-btn" id="chat-send" onclick="sendChat()" title="Send">&#x25B6;</button>
+      </div>
+    </div>
+
+  </aside>
 </div>
 
 <!-- WORKER MODAL -->
 <div class="worker-modal-overlay" id="worker-modal-overlay" style="display:none">
-  <div class="worker-modal" id="worker-modal">
+  <div class="worker-modal">
     <div class="wm-header">
-      <span class="wm-emoji" id="wm-emoji">🤖</span>
+      <span class="wm-emoji" id="wm-emoji">&#x1F916;</span>
       <div class="wm-title-block">
         <div class="wm-specialist" id="wm-specialist">worker</div>
         <div class="wm-status-badge working" id="wm-status-badge">working</div>
       </div>
       <div class="wm-grade-badge" id="wm-grade-badge" style="display:none"></div>
-      <button class="wm-close" id="wm-close" aria-label="Close">✕</button>
+      <button class="wm-close" id="wm-close">&#x2715;</button>
     </div>
     <div class="wm-body">
       <div class="wm-section">
@@ -568,6 +779,22 @@
   </div>
 </div>
 
+<!-- EVENT DETAIL POPUP -->
+<div class="evt-popup-overlay" id="evt-popup-overlay" style="display:none">
+  <div class="evt-popup">
+    <div class="evt-popup-head">
+      <span class="evt-popup-icon" id="evt-popup-icon">&#x25C6;</span>
+      <span class="evt-popup-type" id="evt-popup-type">event</span>
+      <button class="evt-popup-close" onclick="closeEvtPopup()">&#x2715;</button>
+    </div>
+    <div class="evt-popup-body" id="evt-popup-body"></div>
+    <div class="evt-popup-footer" id="evt-popup-footer"></div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-container" id="toast-container"></div>
+
 <!-- FOOTER -->
 <footer class="footer">
   <div class="foot-conn">
@@ -579,471 +806,460 @@
 </footer>
 
 <script>
-  // ── Specialist emoji map ──────────────────────────────────────────────────
-  const EMOJI_MAP = {
-    ux_ui:         '🎨', product_design: '🎨', design_system: '🖌️', accessibility: '♿',
-    frontend_perf: '⚡', visual_regress: '🔍', usability:     '👁️', interaction:    '🖱️',
-    brand:         '✨', mobile_resp:    '📱',
-    backend:       '🏗️', api_design:     '📡', database:      '🗄️', distributed:    '🔄',
-    reliability:   '🛡️', security:       '🔒', auth_identity:  '🔑', devops_release: '🚀',
-    qa_auto:       '🧪', test_strategy:  '📋',
-    bug_hunter:    '🐛', static_anal:    '🔬', perf_profil:    '📊', observability:  '📈',
-    data_eng:      '💾', ml_eng:         '🤖', prompt_eng:     '💬', mcp_protocol:   '🔌',
-    tooling_int:   '⚙️', docs_info:      '📚', technical_wr:  '✍️', developer_exp:  '🛠️',
-    build_system:  '🏭', ci_cd:          '🔁', incident:       '🚨', project_mg:     '📅',
-    scrum:         '🔃', business_anal:  '📊', growth:         '📈', customer_sup:   '💬',
+// Emoji map
+const EMOJI_MAP = {
+  ux_ui:'🎨',product_design:'🎨',design_system:'🖌️',accessibility:'♿',
+  frontend_perf:'⚡',visual_regress:'🔍',usability:'👁️',interaction:'🖱️',
+  brand:'✨',mobile_resp:'📱',backend:'🏗️',api_design:'📡',database:'🗄️',
+  distributed:'🔄',reliability:'🛡️',security:'🔒',auth_identity:'🔑',
+  devops_release:'🚀',qa_auto:'🧪',test_strategy:'📋',bug_hunter:'🐛',
+  static_anal:'🔬',perf_profil:'📊',observability:'📈',data_eng:'💾',
+  ml_eng:'🤖',prompt_eng:'💬',mcp_protocol:'🔌',tooling_int:'⚙️',
+  docs_info:'📚',technical_wr:'✍️',developer_exp:'🛠️',build_system:'🏭',
+  ci_cd:'🔁',incident:'🚨',project_mg:'📅',scrum:'🔃',
+  business_anal:'📊',growth:'📈',customer_sup:'💬',
+};
+function getEmoji(sid) {
+  if (!sid) return '👤';
+  const id = sid.toLowerCase();
+  for (const [k,v] of Object.entries(EMOJI_MAP)) { if (id.includes(k.replace(/_/g,''))) return v; }
+  if (id.includes('ux')||id.includes('ui')) return '🎨';
+  if (id.includes('backend')||id.includes('api')) return '🏗️';
+  if (id.includes('security')) return '🔒';
+  if (id.includes('test')||id.includes('qa')) return '🧪';
+  if (id.includes('data')) return '📊';
+  if (id.includes('perf')) return '⚡';
+  if (id.includes('doc')||id.includes('write')) return '📝';
+  if (id.includes('deploy')||id.includes('devops')) return '🚀';
+  if (id.includes('ai')||id.includes('ml')) return '🤖';
+  return '👤';
+}
+
+const $ = id => document.getElementById(id);
+const S = {
+  connected:false, calls:0, sprints:0,
+  workers:{}, sprintWorkers:{}, sprintDataMap:{},
+  activeSprint:null, logCount:0, logFilter:'all',
+  chatId:null, allLogEntries:[], mcpServers:[],
+};
+
+// Explorer
+function toggleExplorer() {
+  const col = $('explorer-col'), btn = $('act-explorer');
+  col.classList.toggle('hidden');
+  btn.classList.toggle('active', !col.classList.contains('hidden'));
+}
+function toggleSection(id) {
+  const el = $(id);
+  if (el) el.classList.toggle('collapsed');
+}
+function actServers() {
+  $('act-servers').classList.toggle('active');
+  loadMcpServers();
+}
+
+// View switching
+function switchView(name, data) {
+  $('view-workers').style.display       = name==='workers'       ? 'flex':'none';
+  $('view-sprint-detail').style.display = name==='sprint-detail' ? 'block':'none';
+  $('view-mcp-server').style.display    = name==='mcp-server'    ? 'block':'none';
+  const back = $('ctx-back');
+  back.classList.toggle('hidden', name==='workers');
+  if (name==='workers')       { $('ctx-crumb-cur').textContent='Active Workers'; $('active-badge').textContent=S.activeSprint?(S.activeSprint).slice(-14):''; }
+  else if (name==='sprint-detail') { $('ctx-crumb-cur').textContent=(data.sprintName||data.sprintId||'?').slice(0,30); renderSprintDetail(data); }
+  else if (name==='mcp-server')    { $('ctx-crumb-cur').textContent=data.name||'Server'; renderMcpServerView(data); }
+}
+function backToWorkers() { switchView('workers',{}); }
+
+function renderSprintDetail(d) {
+  const el = $('view-sprint-detail');
+  const grade = d.grade||'?', score = d.overallScore!==undefined?d.overallScore:'--';
+  const gradeClass = 'gb-'+(grade==='?'?'Q':grade);
+  const wids = S.sprintWorkers[d.sprintId]||[];
+  el.innerHTML = `<div class="detail-card">
+    <div class="detail-title"><span>${d.sprintName||d.sprintId||'Sprint'}</span><span class="exp-item-badge ${gradeClass}">${grade}</span></div>
+    <div class="detail-grid">
+      <div class="detail-field"><div class="detail-field-label">Sprint ID</div><div class="detail-field-val">${(d.sprintId||'—').slice(-20)}</div></div>
+      <div class="detail-field"><div class="detail-field-label">Score</div><div class="detail-field-val">${score}/100</div></div>
+      <div class="detail-field"><div class="detail-field-label">Tasks</div><div class="detail-field-val">${d.taskCount||'—'}</div></div>
+      <div class="detail-field"><div class="detail-field-label">Dispatched</div><div class="detail-field-val">${d.dispatchedCount||'—'}</div></div>
+    </div></div>
+  <div class="detail-card"><div class="detail-title">Workers (${wids.length})</div>
+    ${wids.length===0?'<div style="color:var(--dim);font-size:12px">No workers in ring buffer for this sprint</div>':''}
+    ${wids.map(wid=>{const wd=_workerData.get(wid)||{};const emoji=getEmoji(wd.specialistId||'');const label=(wd.specialistId||'worker').replace(/_/g,' ');const task=(wd.taskTitle||'—').slice(0,55);return `<div class="detail-worker-row" onclick="openWorkerModal('${wid}')"><span>${emoji}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600">${label}</div><div style="font-size:10px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${task}</div></div></div>`;}).join('')}
+  </div>`;
+}
+
+function renderMcpServerView(s) {
+  const el = $('view-mcp-server');
+  const sc = s.running?'server-running':'server-stopped';
+  const st = s.running?'● Running':'○ Stopped';
+  el.innerHTML = `<div class="server-hero"><div class="server-icon">🔌</div><div class="server-hero-info">
+    <div class="server-name">${s.name}</div>
+    <div class="server-desc">${s.description||'No description'}</div>
+    <div class="server-status-row">
+      <span class="server-stat-chip ${sc}">${st}</span>
+      ${s.port?`<span class="server-stat-chip">Port <b>:${s.port}</b></span>`:''}
+      ${s.version?`<span class="server-stat-chip">v${s.version}</span>`:''}
+      ${s.tools!=null?`<span class="server-stat-chip"><b>${s.tools}</b> tools</span>`:''}
+    </div></div></div>
+  <div class="detail-card"><div class="detail-title">Info</div>
+    <div class="detail-grid">
+      <div class="detail-field"><div class="detail-field-label">Directory</div><div class="detail-field-val" style="font-size:10px">${s.dir||'—'}</div></div>
+      <div class="detail-field"><div class="detail-field-label">MCP Server</div><div class="detail-field-val">${s.hasMcpServer?'✅ Yes':'❌ No'}</div></div>
+    </div></div>`;
+}
+
+// Tab switching
+function switchTab(name) {
+  ['events','chat'].forEach(t=>{
+    $(('tab-'+t)).classList.toggle('active',t===name);
+    $(('tab-'+t+'-btn')).classList.toggle('active',t===name);
+  });
+  if (name==='chat') loadChatSessions();
+}
+
+// Filter
+function setFilter(f,btn) {
+  S.logFilter = f;
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  reRenderLog();
+}
+function matchesFilter(type) {
+  if (S.logFilter==='all') return true;
+  if (S.logFilter==='tool_call') return type==='tool_call';
+  if (S.logFilter==='worker') return type==='worker_spawned';
+  if (S.logFilter==='sprint') return ['sprint_start','sprint_complete','evaluation_result','synthesis_complete'].includes(type);
+  if (S.logFilter==='error') return type==='error';
+  return true;
+}
+function reRenderLog() {
+  $('log-scroll').innerHTML=''; S.logCount=0;
+  for (const e of S.allLogEntries.filter(e=>matchesFilter(e.type)))
+    appendLogEl(e.type,e.icon,e.label,e.msg,e.ts,e.data);
+}
+
+// Load more
+function loadMoreEvents() {
+  fetch('/events/recent').then(r=>r.json()).then(d=>{
+    let added=0;
+    for (const evt of (d.events||[]).slice().reverse()) {
+      const dup = S.allLogEntries.some(e=>e.ts===evt.data.ts&&e.type===evt.type);
+      if (!dup) { const msg=buildLogMsg(evt.type,evt.data); S.allLogEntries.push({type:evt.type,icon:LOG_ICON[evt.type]||'◆',label:evt.type.replace(/_/g,' '),msg,ts:evt.data.ts,data:evt.data}); added++; }
+    }
+    reRenderLog(); showToast(added+' events loaded','info');
+  }).catch(()=>showToast('Failed to load events','error'));
+}
+
+// SSE
+let sse=null, reconnTimer=null;
+const ALL_EVENTS=['tool_call','worker_spawned','sprint_start','sprint_complete','evaluation_result','synthesis_complete','memory_op','loop_state','ping'];
+function connect() {
+  if (sse) { try{sse.close();}catch(_){} sse=null; }
+  sse = new EventSource('/stream');
+  sse.onopen  = ()=>{ setConn(true); addSysLog('Connected to agent-ops-hub'); };
+  sse.onerror = ()=>{ setConn(false); if(reconnTimer)clearTimeout(reconnTimer); reconnTimer=setTimeout(connect,3000); };
+  for (const evt of ALL_EVENTS) sse.addEventListener(evt,e=>{ let d; try{d=JSON.parse(e.data);}catch(_){return;} dispatch(evt,d); });
+}
+function setConn(v) {
+  S.connected=v;
+  $('conn-dot').className='conn-dot'+(v?' on':' err');
+  $('conn-label').textContent=v?'Connected':'Reconnecting…';
+  $('foot-dot').className='foot-dot'+(v?' on':'');
+  $('foot-status').textContent=v?'● Connected':'⚠ Reconnecting…';
+}
+
+function dispatch(type,d) {
+  $('foot-last').textContent='Last: '+new Date(d.ts||Date.now()).toLocaleTimeString();
+  switch(type) {
+    case 'tool_call':          onToolCall(d);      break;
+    case 'worker_spawned':     onWorkerSpawned(d); break;
+    case 'sprint_start':       onSprintStart(d);   break;
+    case 'sprint_complete':    onSprintComplete(d);break;
+    case 'evaluation_result':  onEvalResult(d);    break;
+    case 'synthesis_complete': onSynthesis(d);     break;
+    case 'ping':               onPing(d);          break;
+  }
+  if (type!=='ping') logEvent(type,d);
+}
+
+function onToolCall(d) {
+  if (d.phase==='start') { S.calls++; $('stat-calls').textContent=S.calls; $('ai-status').classList.remove('idle'); $('ai-tool').textContent='— '+d.toolName; }
+  else { $('ai-status').classList.add('idle'); $('ai-tool').textContent=''; }
+}
+function onSprintStart(d) {
+  S.activeSprint=d.sprintId;
+  $('active-badge').textContent=(d.sprintId||'').slice(-14);
+  S.sprintDataMap[d.sprintId]=Object.assign(S.sprintDataMap[d.sprintId]||{},d);
+}
+function onWorkerSpawned(d) {
+  const ph=workerGrid.querySelector('.worker-ph'); if(ph) ph.remove();
+  const wid=`${d.sprintId}-${d.workerIdx}`;
+  if (!S.sprintWorkers[d.sprintId]) S.sprintWorkers[d.sprintId]=[];
+  S.sprintWorkers[d.sprintId].push(wid);
+  S.activeSprint=d.sprintId;
+  $('active-badge').textContent=(d.sprintId||'').slice(-14);
+  const card=buildWorkerCard(wid,d);
+  S.workers[wid]=card;
+  _workerData.set(wid,d);
+  workerGrid.appendChild(card);
+  setTimeout(()=>{ card.classList.replace('spawning','working'); const sl=card.querySelector('.wstatus-label'); if(sl) sl.textContent='working…'; },350+d.workerIdx*90);
+}
+function buildWorkerCard(wid,d) {
+  const card=document.createElement('div');
+  card.className='wcard spawning'; card.dataset.wid=wid;
+  card.addEventListener('click',()=>openWorkerModal(wid));
+  const emoji=getEmoji(d.specialistId||'');
+  const label=(d.specialistId||'worker').replace(/_/g,' ');
+  const task=(d.taskTitle||'').slice(0,58);
+  card.innerHTML=`<div class="wcard-emoji-wrap"><span class="wcard-emoji">${emoji}<span class="spin-ring"></span></span></div>
+    <div class="wcard-id">${label}</div>
+    <div class="wcard-task">${task}</div>
+    <div class="wcard-status"><span class="wstatus-dot"></span><span class="wstatus-label">spawning…</span><span class="thinking-dots"><span></span><span></span><span></span></span></div>`;
+  return card;
+}
+function onSprintComplete(d) {
+  S.sprints++; $('stat-sprints').textContent=S.sprints;
+  S.sprintDataMap[d.sprintId]=Object.assign(S.sprintDataMap[d.sprintId]||{},d);
+  setTimeout(()=>{ for(const wid of (S.sprintWorkers[d.sprintId]||[])){ const c=S.workers[wid]; if(!c)continue; c.classList.replace('working','done'); c.classList.remove('spawning'); const sl=c.querySelector('.wstatus-label'); if(sl) sl.textContent='dispatched'; const td=c.querySelector('.thinking-dots'); if(td) td.style.display='none'; const sr=c.querySelector('.spin-ring'); if(sr) sr.style.borderTopColor='transparent'; }},1100);
+  addExpSprintItem(d);
+}
+function onEvalResult(d) {
+  const g=d.grade||'C', sc=d.overallScore||0;
+  $('score-section').classList.add('visible');
+  $('score-num').textContent=sc+'/100'; $('score-num').className='score-num c-'+g;
+  $('score-tasks').textContent=(d.taskCount||0)+' tasks evaluated';
+  $('score-grade').textContent='Grade '+g;
+  $('score-fill').className='score-fill sf-'+g;
+  setTimeout(()=>{ $('score-fill').style.width=sc+'%'; },50);
+  $('score-rec').textContent=(d.recommendation||'').slice(0,120);
+  for (const wid of (S.sprintWorkers[d.sprintId]||[])) {
+    const c=S.workers[wid]; if(!c) continue;
+    c.className='wcard scored-'+g;
+    const sl=c.querySelector('.wstatus-label'); if(sl) sl.textContent=sc+'/100';
+    if (!c.querySelector('.wcard-score')) { const b=document.createElement('div'); b.className='wcard-score ws-'+g; b.textContent=g; c.appendChild(b); }
+    _workerData.set(wid+':score',d);
+    if (_openModalWid===wid) openWorkerModal(wid);
+  }
+  if (S.sprintDataMap[d.sprintId]) { S.sprintDataMap[d.sprintId].grade=g; S.sprintDataMap[d.sprintId].overallScore=sc; }
+  const expEl=document.querySelector(`[data-sprint-id="${d.sprintId}"]`);
+  if (expEl) { const b=expEl.querySelector('.exp-item-badge'); if(b){ b.textContent=g; b.className='exp-item-badge gb-'+g; } }
+}
+function onSynthesis(d) {}
+let _uptimeSec = 0;
+function _fmtUptime(s) {
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+  return h>0?`${h}h ${m}m`:m>0?`${m}m ${ss}s`:`${ss}s`;
+}
+setInterval(()=>{ if(S.connected){ _uptimeSec++; $('stat-uptime').textContent=_fmtUptime(_uptimeSec); } },1000);
+setInterval(()=>{ fetch('/api/mcp-servers').then(r=>r.json()).then(d=>{ const prev=S.mcpServers.length; S.mcpServers=d.servers||[]; if(prev!==S.mcpServers.length||S.mcpServers.some((s,i)=>s.running!==(S.mcpServers[i]||{}).running)) renderMcpList(); }).catch(()=>{}); },30000);
+function onPing(d) {
+  if (d.uptime!==undefined) { _uptimeSec=d.uptime; $('stat-uptime').textContent=_fmtUptime(_uptimeSec); }
+  if (d.toolCallCount!==undefined) { S.calls=Math.max(S.calls,d.toolCallCount); $('stat-calls').textContent=S.calls; }
+  if (d.clientCount!==undefined) $('stat-clients').textContent=d.clientCount;
+}
+
+// Explorer: sprints
+function addExpSprintItem(d) {
+  const list=$('sprint-list'), empty=$('sprint-empty-exp');
+  if(empty) empty.style.display='none';
+  const sid=d.sprintId;
+  if (document.querySelector(`[data-sprint-id="${sid}"]`)) return;
+  const item=document.createElement('div');
+  item.className='exp-item'; item.dataset.sprintId=sid;
+  item.onclick=()=>{ document.querySelectorAll('.exp-item').forEach(el=>el.classList.remove('active')); item.classList.add('active'); switchView('sprint-detail',S.sprintDataMap[sid]||d); };
+  const name=(d.sprintName||sid||'?').slice(0,22), grade=d.grade||'?', gc='gb-'+(grade==='?'?'Q':grade);
+  item.innerHTML=`<span class="exp-item-icon">⚡</span><span class="exp-item-name">${name}</span><span class="exp-item-badge ${gc}">${grade}</span>`;
+  list.prepend(item);
+  const count=list.querySelectorAll('.exp-item').length;
+  $('sprint-count').textContent=count>0?count:'';
+}
+
+// Explorer: MCP servers
+function loadMcpServers() {
+  fetch('/api/mcp-servers').then(r=>r.json()).then(d=>{ S.mcpServers=d.servers||[]; renderMcpList(); }).catch(()=>{ const l=$('mcp-loading'); if(l) l.textContent='Scan failed'; });
+}
+function renderMcpList() {
+  const list=$('mcp-list'); list.innerHTML='';
+  $('mcp-count').textContent=S.mcpServers.length||'';
+  if (!S.mcpServers.length) { list.innerHTML='<div class="exp-empty">No MCP servers found</div>'; return; }
+  for (const s of S.mcpServers) {
+    const item=document.createElement('div'); item.className='exp-item';
+    item.onclick=()=>{ document.querySelectorAll('.exp-item').forEach(el=>el.classList.remove('active')); item.classList.add('active'); switchView('mcp-server',s); };
+    const toolsText=s.tools!=null?String(s.tools):'';
+    item.innerHTML=`<div class="exp-dot ${s.running?'on':''}"></div><span class="exp-item-name">${s.name}</span>${toolsText?`<span style="font-size:9px;color:var(--dim)">${toolsText}</span>`:''}`;
+    list.appendChild(item);
+  }
+}
+function refreshMcpServers() {
+  $('mcp-list').innerHTML='<div class="exp-loading">Scanning…</div>'; $('mcp-count').textContent='';
+  fetch('/api/mcp-servers?refresh=1').then(r=>r.json()).then(d=>{ S.mcpServers=d.servers||[]; renderMcpList(); showToast(S.mcpServers.length+' servers found','success'); }).catch(()=>showToast('Scan failed','error'));
+}
+
+// Sprint history from API
+function loadSprintHistory() {
+  fetch('/api/sprint-history').then(r=>r.json()).then(d=>{ for(const sp of (d.sprints||[])){ S.sprintDataMap[sp.sprintId]=Object.assign(S.sprintDataMap[sp.sprintId]||{},sp); addExpSprintItem(sp); } }).catch(()=>{});
+}
+
+// Event log
+const LOG_ICON = { tool_call:'🔧',worker_spawned:'⚡',sprint_start:'🔵',sprint_complete:'✅',evaluation_result:'📊',synthesis_complete:'🔗',memory_op:'💾',loop_state:'🔄',system:'🟢',error:'❌' };
+const workerGrid = $('worker-grid');
+function buildLogMsg(type,d) {
+  const fns = {
+    tool_call:d=>d.phase==='start'?`→ ${d.toolName}${d.argsSummary?' ('+d.argsSummary+')':''}`:`← ${d.toolName} ${d.phase}${d.durationMs?' '+d.durationMs+'ms':''}`,
+    worker_spawned:d=>`[${d.specialistId}] ${(d.taskTitle||'').slice(0,50)}`,
+    sprint_start:d=>`${(d.sprintId||'').slice(-14)} · ${d.taskCount} tasks`,
+    sprint_complete:d=>`${(d.sprintId||'').slice(-14)} · ${d.dispatchedCount||0}/${d.taskCount} dispatched`,
+    evaluation_result:d=>`score ${d.overallScore}/100 grade ${d.grade} · ${d.taskCount} tasks`,
+    synthesis_complete:d=>`${d.totalActions} actions · ${d.conflictCount} conflicts · ${d.specialistCount} specialists`,
+    memory_op:d=>`${d.operation||'?'} ${d.key||''}`,
+    system:d=>typeof d==='string'?d:JSON.stringify(d),
   };
+  const fn=fns[type]; return fn?fn(d):JSON.stringify(d).slice(0,80);
+}
+function logEvent(type,d) {
+  const msg=buildLogMsg(type,d), icon=LOG_ICON[type]||'◆', label=type.replace(/_/g,' '), ts=d.ts;
+  S.allLogEntries.unshift({type,icon,label,msg,ts,data:d});
+  if (S.allLogEntries.length>500) S.allLogEntries.pop();
+  if (matchesFilter(type)) appendLogEl(type,icon,label,msg,ts,d);
+}
+function addSysLog(msg) { logEvent('system',{msg,ts:Date.now()}); }
+function appendLogEl(type,icon,label,msg,ts,data) {
+  const el=document.createElement('div'); el.className='log-entry lt-'+type;
+  const tStr=ts?new Date(ts).toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}):new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.innerHTML=`<span class="log-icon">${icon}</span><div class="log-body"><div class="log-type">${label}</div><div class="log-msg">${typeof msg==='string'?msg:JSON.stringify(msg)}</div></div><span class="log-ts">${tStr}</span>`;
+  el.addEventListener('click',()=>openEvtPopup(type,icon,data||{},tStr));
+  const ls=$('log-scroll');
+  ls.insertBefore(el,ls.firstChild); S.logCount++;
+  if (S.logCount>300) { const last=ls.lastChild; if(last){last.remove();S.logCount--;} }
+}
 
-  function getEmoji(specialistId) {
-    if (!specialistId) return '👤';
-    const id = specialistId.toLowerCase();
-    for (const [k, v] of Object.entries(EMOJI_MAP)) {
-      if (id.includes(k.replace(/_/g, ''))) return v;
-    }
-    if (id.includes('ux') || id.includes('ui'))          return '🎨';
-    if (id.includes('backend') || id.includes('api'))    return '🏗️';
-    if (id.includes('security'))                         return '🔒';
-    if (id.includes('test') || id.includes('qa'))        return '🧪';
-    if (id.includes('data'))                             return '📊';
-    if (id.includes('perf'))                             return '⚡';
-    if (id.includes('doc') || id.includes('write'))      return '📝';
-    if (id.includes('deploy') || id.includes('devops'))  return '🚀';
-    if (id.includes('ai') || id.includes('ml'))          return '🤖';
-    return '👤';
+// Event popup
+function openEvtPopup(type,icon,data,tStr) {
+  $('evt-popup-icon').textContent=icon||LOG_ICON[type]||'◆';
+  $('evt-popup-type').textContent=type.replace(/_/g,' ');
+  $('evt-popup-footer').textContent='Timestamp: '+(tStr||'—');
+  const body=$('evt-popup-body'); body.innerHTML='';
+  const skip=new Set(['ts']);
+  for(const [k,v] of Object.entries(data||{})) {
+    if(skip.has(k)) continue;
+    const f=document.createElement('div'); f.className='evt-field';
+    f.innerHTML=`<div class="evt-field-key">${k}</div><div class="evt-field-val">${typeof v==='object'?JSON.stringify(v,null,2):String(v)}</div>`;
+    body.appendChild(f);
   }
+  if(!Object.keys(data||{}).length) body.innerHTML='<div style="color:var(--dim);font-size:12px">No fields</div>';
+  $('evt-popup-overlay').style.display='flex';
+}
+function closeEvtPopup() {
+  const ov=$('evt-popup-overlay');
+  ov.classList.add('closing');
+  setTimeout(()=>{ov.classList.remove('closing');ov.style.display='none';},120);
+}
+$('evt-popup-overlay').addEventListener('click',e=>{if(e.target===$('evt-popup-overlay'))closeEvtPopup();});
 
-  // ── State ─────────────────────────────────────────────────────────────────
-  const S = {
-    connected: false,
-    calls: 0,
-    sprints: 0,
-    workers: {},        // workerId → { card, sprintId }
-    sprintWorkers: {},  // sprintId → [workerId,…]
-    activeSprint: null,
-    logCount: 0,
-    version: null,
-  };
+// Worker modal
+const _workerData=new Map(); let _openModalWid=null;
+$('wm-close').onclick=closeWorkerModal;
+$('worker-modal-overlay').addEventListener('click',e=>{if(e.target===$('worker-modal-overlay'))closeWorkerModal();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(_openModalWid)closeWorkerModal();else if($('evt-popup-overlay').style.display!=='none')closeEvtPopup();}
+});
+function openWorkerModal(wid) {
+  const d=_workerData.get(wid); if(!d)return;
+  _openModalWid=wid;
+  const card=S.workers[wid];
+  const emoji=getEmoji(d.specialistId||''), label=(d.specialistId||'worker').replace(/_/g,' ');
+  const state=card?(card.className.match(/scored-[A-F]|working|spawning|done/)||['working'])[0]:'working';
+  const grade=state.startsWith('scored-')?state.replace('scored-',''):null;
+  const sprintShort=(d.sprintId||'').slice(-14), widx=d.workerIdx!==undefined?'#'+d.workerIdx:'—';
+  $('wm-emoji').textContent=emoji; $('wm-specialist').textContent=label;
+  $('wm-task').textContent=d.taskTitle||'—'; $('wm-sprint').textContent=sprintShort||'—'; $('wm-worker-idx').textContent=widx;
+  const badge=$('wm-status-badge');
+  badge.textContent=grade?'Grade '+grade:state.replace('spawning','spawning…').replace('working','working…');
+  badge.className='wm-status-badge '+(grade?'scored-'+grade:state);
+  const gb=$('wm-grade-badge');
+  if(grade){gb.textContent=grade;gb.style.display='';gb.className='wm-grade-badge gb-'+grade;}else gb.style.display='none';
+  const scoreData=_workerData.get(wid+':score'), ws=$('wm-score-section');
+  if(scoreData){$('wm-score-val').textContent=scoreData.overallScore+'/100 (Grade '+scoreData.grade+')';ws.style.display='';}else ws.style.display='none';
+  const liveDot=$('wm-live-dot'), isLive=state==='working'||state==='spawning';
+  liveDot.className='wm-live-dot'+(isLive?'':' done');
+  $('wm-footer-status').textContent=grade?'evaluated — grade '+grade:state;
+  $('wm-spawned-at').textContent=d.sprintId?'sprint …'+sprintShort:'';
+  $('worker-modal-overlay').style.display='flex';
+}
+function closeWorkerModal() {
+  _openModalWid=null;
+  const ov=$('worker-modal-overlay');
+  ov.classList.add('closing');
+  setTimeout(()=>{ov.classList.remove('closing');ov.style.display='none';},120);
+}
 
-  // ── DOM refs ──────────────────────────────────────────────────────────────
-  const $ = (id) => document.getElementById(id);
-  const connDot    = $('conn-dot');
-  const connLabel  = $('conn-label');
-  const statCalls  = $('stat-calls');
-  const statSprints = $('stat-sprints');
-  const statUptime = $('stat-uptime');
-  const statClients = $('stat-clients');
-  const versionPill = $('version-pill');
-  const sprintScroll = $('sprint-scroll');
-  const sprintEmpty  = $('sprint-empty');
-  const sprintTotal  = $('sprint-total');
-  const workerGrid  = $('worker-grid');
-  const activeBadge = $('active-badge');
-  const scoreSection = $('score-section');
-  const scoreNum  = $('score-num');
-  const scoreTasks = $('score-tasks');
-  const scoreGrade = $('score-grade');
-  const scoreFill  = $('score-fill');
-  const scoreRec   = $('score-rec');
-  const logScroll  = $('log-scroll');
-  const aiStatus   = $('ai-status');
-  const aiTool     = $('ai-tool');
-  const footDot    = $('foot-dot');
-  const footStatus = $('foot-status');
-  const footLast   = $('foot-last');
+// Quick actions
+function clearEvents() { $('log-scroll').innerHTML=''; S.logCount=0; S.allLogEntries=[]; showToast('Events cleared','info'); }
+function runBenchmark() {
+  showToast('Starting benchmark…','info');
+  fetch('/mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'run_ai_benchmark',arguments:{}}})}).then(()=>showToast('Benchmark started','success')).catch(()=>showToast('Benchmark failed','error'));
+}
+function refreshTests() {
+  fetch('/api/test-results').then(r=>r.json()).then(d=>{ if(d.available)showToast(`Tests: ${d.passed}✅ ${d.failed}❌ (${d.passRate}%)`,d.failed>0?'error':'success');else showToast('No test results yet','info'); }).catch(()=>showToast('Could not fetch tests','error'));
+}
 
-  $('clear-btn').onclick = () => { logScroll.innerHTML = ''; S.logCount = 0; };
+// Chat
+let chatSending=false;
+function loadChatSessions() {
+  fetch('/api/chat/history').then(r=>r.json()).then(d=>{
+    const sel=$('chat-session-sel'); sel.innerHTML='<option value="">— New chat —</option>';
+    for(const s of (d.sessions||[])){const opt=document.createElement('option');opt.value=s.chatId;opt.textContent=(s.preview||s.chatId).slice(0,35);sel.appendChild(opt);}
+    if(S.chatId) sel.value=S.chatId;
+  }).catch(()=>{});
+}
+function loadChatSession(chatId) {
+  if(!chatId){newChatSession();return;} S.chatId=chatId;
+  $('chat-messages').innerHTML='';
+  fetch('/api/chat/history/'+chatId).then(r=>r.json()).then(d=>{for(const m of (d.messages||[]))renderChatBubble(m.role,m.content,m.ts);scrollChatBottom();}).catch(()=>showToast('Could not load session','error'));
+}
+function newChatSession() { S.chatId=null; $('chat-session-sel').value=''; $('chat-messages').innerHTML='<div class="chat-empty" id="chat-empty">Ask anything about the ops hub…<br><br>Powered by Claude2 AI at localhost:12345</div>'; }
+function renderChatBubble(role,content,ts) {
+  const empty=$('chat-empty'); if(empty) empty.style.display='none';
+  const msgs=$('chat-messages'), div=document.createElement('div');
+  div.className='chat-bubble '+(role==='user'?'user':'assistant');
+  const tStr=ts?new Date(ts).toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit'}):'';
+  div.innerHTML=content+(tStr?`<div class="chat-bubble-ts">${tStr}</div>`:'');
+  msgs.appendChild(div);
+}
+function scrollChatBottom(){const msgs=$('chat-messages');msgs.scrollTop=msgs.scrollHeight;}
+function chatKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
+function sendChat() {
+  if(chatSending)return;
+  const input=$('chat-input'), msg=input.value.trim(); if(!msg)return;
+  chatSending=true; $('chat-send').disabled=true; input.value='';
+  renderChatBubble('user',msg,new Date().toISOString());
+  const thinkDiv=document.createElement('div'); thinkDiv.className='chat-bubble thinking';
+  thinkDiv.innerHTML='<div class="thinking-dots"><span></span><span></span><span></span></div>';
+  $('chat-messages').appendChild(thinkDiv); scrollChatBottom();
+  fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,chatId:S.chatId||undefined})})
+    .then(r=>r.json()).then(d=>{
+      thinkDiv.remove();
+      if(d.error)renderChatBubble('assistant','⚠ '+d.error);
+      else{if(!S.chatId){S.chatId=d.chatId;loadChatSessions();}renderChatBubble('assistant',d.reply||'(no reply)',d.ts);}
+      scrollChatBottom();
+    }).catch(e=>{thinkDiv.remove();renderChatBubble('assistant','⚠ Network error: '+e.message);scrollChatBottom();})
+    .finally(()=>{chatSending=false;$('chat-send').disabled=false;});
+}
 
-  // ── Connection ────────────────────────────────────────────────────────────
-  let sse = null;
-  let reconnTimer = null;
-  const ALL_EVENTS = ['tool_call','worker_spawned','sprint_start','sprint_complete','evaluation_result','synthesis_complete','memory_op','loop_state','ping'];
+// Toast
+function showToast(msg,type='info'){
+  const c=$('toast-container'),el=document.createElement('div');
+  el.className='toast '+type; el.textContent=msg; c.appendChild(el);
+  setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),250);},3000);
+}
 
-  function connect() {
-    if (sse) { try { sse.close(); } catch(_) {} sse = null; }
-    sse = new EventSource('/stream');
-
-    sse.onopen = () => {
-      setConn(true);
-      addLog('system', '🟢', 'Connected to live stream', 'Connected to agent-ops-hub SSE stream');
-    };
-    sse.onerror = () => {
-      setConn(false);
-      if (reconnTimer) clearTimeout(reconnTimer);
-      reconnTimer = setTimeout(connect, 3000);
-    };
-    for (const evt of ALL_EVENTS) {
-      sse.addEventListener(evt, (e) => {
-        let d; try { d = JSON.parse(e.data); } catch(_) { return; }
-        dispatch(evt, d);
-      });
-    }
-  }
-
-  function setConn(v) {
-    S.connected = v;
-    connDot.className  = 'conn-dot' + (v ? ' on' : ' err');
-    connLabel.textContent = v ? 'Connected' : 'Reconnecting…';
-    footDot.className  = 'foot-dot' + (v ? ' on' : '');
-    footStatus.textContent = v ? '● Connected' : '⚠ Reconnecting…';
-  }
-
-  // ── Event dispatcher ──────────────────────────────────────────────────────
-  function dispatch(type, d) {
-    footLast.textContent = 'Last: ' + new Date(d.ts || Date.now()).toLocaleTimeString();
-    switch (type) {
-      case 'tool_call':          onToolCall(d);         break;
-      case 'worker_spawned':     onWorkerSpawned(d);    break;
-      case 'sprint_start':       onSprintStart(d);      break;
-      case 'sprint_complete':    onSprintComplete(d);   break;
-      case 'evaluation_result':  onEvalResult(d);       break;
-      case 'synthesis_complete': onSynthesis(d);        break;
-      case 'ping':               onPing(d);             break;
-    }
-    if (type !== 'ping') logEvent(type, d);
-  }
-
-  // ── Handler: tool_call ────────────────────────────────────────────────────
-  function onToolCall(d) {
-    if (d.phase === 'start') {
-      S.calls++;
-      statCalls.textContent = S.calls;
-      aiStatus.classList.remove('idle');
-      aiTool.textContent = '— ' + d.toolName;
-    } else {
-      aiStatus.classList.add('idle');
-      aiTool.textContent = '';
-    }
-  }
-
-  // ── Handler: sprint_start ─────────────────────────────────────────────────
-  function onSprintStart(d) {
-    S.activeSprint = d.sprintId;
-    activeBadge.textContent = (d.sprintId || '').slice(-14);
-  }
-
-  // ── Handler: worker_spawned ───────────────────────────────────────────────
-  function onWorkerSpawned(d) {
-    // Remove placeholder on first worker
-    const ph = workerGrid.querySelector('.worker-ph');
-    if (ph) ph.remove();
-
-    const wid = `${d.sprintId}-${d.workerIdx}`;
-    if (!S.sprintWorkers[d.sprintId]) S.sprintWorkers[d.sprintId] = [];
-    S.sprintWorkers[d.sprintId].push(wid);
-    S.activeSprint = d.sprintId;
-    activeBadge.textContent = (d.sprintId || '').slice(-14);
-
-    const card = buildWorkerCard(wid, d);
-    S.workers[wid] = card;
-    _workerData.set(wid, d);
-    workerGrid.appendChild(card);
-
-    // Transition: spawning → working after a staggered delay
-    setTimeout(() => {
-      card.classList.replace('spawning', 'working');
-      card.querySelector('.wstatus-label').textContent = 'working…';
-    }, 350 + d.workerIdx * 90);
-  }
-
-  function buildWorkerCard(wid, d) {
-    const card = document.createElement('div');
-    card.className = 'wcard spawning';
-    card.dataset.wid = wid;
-    card.addEventListener('click', () => openWorkerModal(wid));
-    const emoji  = getEmoji(d.specialistId || '');
-    const label  = (d.specialistId || 'worker').replace(/_/g, ' ');
-    const task   = (d.taskTitle || '').slice(0, 58);
-    card.innerHTML = `
-      <div class="wcard-emoji-wrap">
-        <span class="wcard-emoji">${emoji}<span class="spin-ring"></span></span>
-      </div>
-      <div class="wcard-id">${label}</div>
-      <div class="wcard-task">${task}</div>
-      <div class="wcard-status">
-        <span class="wstatus-dot"></span>
-        <span class="wstatus-label">spawning…</span>
-        <span class="thinking-dots"><span></span><span></span><span></span></span>
-      </div>`;
-    return card;
-  }
-
-  // ── Handler: sprint_complete ──────────────────────────────────────────────
-  function onSprintComplete(d) {
-    S.sprints++;
-    statSprints.textContent = S.sprints;
-
-    setTimeout(() => {
-      for (const wid of (S.sprintWorkers[d.sprintId] || [])) {
-        const c = S.workers[wid]; if (!c) continue;
-        c.classList.replace('working', 'done');
-        c.classList.remove('spawning');
-        const sl = c.querySelector('.wstatus-label'); if (sl) sl.textContent = 'dispatched';
-        const td = c.querySelector('.thinking-dots'); if (td) td.style.display = 'none';
-        const sr = c.querySelector('.spin-ring');    if (sr) sr.style.borderTopColor = 'transparent';
-      }
-    }, 1100);
-
-    ensureSprintCard(d);
-  }
-
-  // ── Handler: evaluation_result ────────────────────────────────────────────
-  function onEvalResult(d) {
-    const g = d.grade || 'C';
-    const sc = d.overallScore || 0;
-
-    // Score bar
-    scoreSection.classList.add('visible');
-    scoreNum.textContent = sc + '/100';
-    scoreNum.className   = 'score-num c-' + g;
-    scoreTasks.textContent = (d.taskCount || 0) + ' tasks evaluated';
-    scoreGrade.textContent = 'Grade ' + g;
-    scoreFill.className  = 'score-fill sf-' + g;
-    setTimeout(() => { scoreFill.style.width = sc + '%'; }, 50);
-    scoreRec.textContent = (d.recommendation || '').slice(0, 120);
-
-    // Color worker cards
-    for (const wid of (S.sprintWorkers[d.sprintId] || [])) {
-      const c = S.workers[wid]; if (!c) continue;
-      c.className = 'wcard scored-' + g;
-      const sl = c.querySelector('.wstatus-label');
-      if (sl) sl.textContent = sc + '/100';
-      const existing = c.querySelector('.wcard-score');
-      if (!existing) {
-        const badge = document.createElement('div');
-        badge.className = 'wcard-score ws-' + g;
-        badge.textContent = g;
-        c.appendChild(badge);
-      }
-      // Store score data for modal; refresh if this worker's modal is open
-      _workerData.set(wid + ':score', d);
-      if (_openModalWid === wid) openWorkerModal(wid);
-    }
-
-    // Update sprint card
-    const sc_el = sprintScroll.querySelector(`[data-sid="${d.sprintId}"]`);
-    if (sc_el) {
-      const sb = sc_el.querySelector('.sc-score');
-      if (sb) sb.textContent = sc + '/100';
-      const gb = sc_el.querySelector('.grade-badge');
-      if (gb) { gb.textContent = g; gb.className = 'grade-badge gb-' + g; }
-    }
-  }
-
-  // ── Worker Modal ──────────────────────────────────────────────────────────
-  const _workerData = new Map();
-  let _openModalWid = null;
-
-  const modalOverlay = document.getElementById('worker-modal-overlay');
-  document.getElementById('wm-close').onclick = closeWorkerModal;
-  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeWorkerModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && _openModalWid) closeWorkerModal(); });
-
-  function openWorkerModal(wid) {
-    const d = _workerData.get(wid);
-    if (!d) return;
-    _openModalWid = wid;
-    const card = S.workers[wid];
-    const emoji    = getEmoji(d.specialistId || '');
-    const label    = (d.specialistId || 'worker').replace(/_/g, ' ');
-    const state    = card ? (card.className.match(/scored-[A-F]|working|spawning|done/) || ['working'])[0] : 'working';
-    const grade    = state.startsWith('scored-') ? state.replace('scored-', '') : null;
-    const sprintShort = (d.sprintId || '').slice(-14);
-    const workerIdx   = d.workerIdx !== undefined ? '#' + d.workerIdx : '—';
-
-    document.getElementById('wm-emoji').textContent       = emoji;
-    document.getElementById('wm-specialist').textContent  = label;
-    document.getElementById('wm-task').textContent        = d.taskTitle || '—';
-    document.getElementById('wm-sprint').textContent      = sprintShort || '—';
-    document.getElementById('wm-worker-idx').textContent  = workerIdx;
-
-    const badge = document.getElementById('wm-status-badge');
-    badge.textContent = grade ? 'Grade ' + grade : state.replace('spawning', 'spawning…').replace('working', 'working…');
-    badge.className   = 'wm-status-badge ' + (grade ? 'scored-' + grade : state);
-
-    const gradeBadgeEl = document.getElementById('wm-grade-badge');
-    if (grade) {
-      gradeBadgeEl.textContent = grade;
-      gradeBadgeEl.style.display = '';
-      gradeBadgeEl.className = 'wm-grade-badge gb-' + grade;
-    } else {
-      gradeBadgeEl.style.display = 'none';
-    }
-
-    // Score section (from evaluation_result)
-    const scoreData = _workerData.get(wid + ':score');
-    const scoreSection = document.getElementById('wm-score-section');
-    if (scoreData) {
-      document.getElementById('wm-score-val').textContent = scoreData.overallScore + '/100 (Grade ' + scoreData.grade + ')';
-      scoreSection.style.display = '';
-    } else {
-      scoreSection.style.display = 'none';
-    }
-
-    // Footer
-    const liveDot = document.getElementById('wm-live-dot');
-    const footerStatus = document.getElementById('wm-footer-status');
-    const isLive = state === 'working' || state === 'spawning';
-    liveDot.className = 'wm-live-dot' + (isLive ? '' : ' done');
-    footerStatus.textContent = grade ? 'evaluated — grade ' + grade : state;
-    document.getElementById('wm-spawned-at').textContent = d.sprintId ? 'sprint …' + sprintShort : '';
-
-    modalOverlay.style.display = 'flex';
-    requestAnimationFrame(() => modalOverlay.classList.add('open'));
-  }
-
-  function closeWorkerModal() {
-    _openModalWid = null;
-    modalOverlay.classList.add('closing');
-    setTimeout(() => {
-      modalOverlay.classList.remove('open', 'closing');
-      modalOverlay.style.display = 'none';
-    }, 120);
-  }
-
-  // ── Handler: synthesis_complete ───────────────────────────────────────────
-  function onSynthesis(d) {
-    // nothing extra — logged only
-  }
-
-  // ── Handler: ping ─────────────────────────────────────────────────────────
-  function onPing(d) {
-    if (d.uptime !== undefined) {
-      const s = d.uptime;
-      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
-      statUptime.textContent = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${ss}s` : `${ss}s`;
-    }
-    if (d.toolCallCount !== undefined) {
-      S.calls = Math.max(S.calls, d.toolCallCount);
-      statCalls.textContent = S.calls;
-    }
-    if (d.clientCount !== undefined) {
-      statClients.textContent = d.clientCount;
-    }
-  }
-
-  // ── Sprint card helpers ───────────────────────────────────────────────────
-  function ensureSprintCard(d) {
-    if (sprintEmpty) sprintEmpty.style.display = 'none';
-    const existing = sprintScroll.querySelector(`[data-sid="${d.sprintId}"]`);
-    if (existing) return;
-
-    const card = document.createElement('div');
-    card.className = 'sprint-card active';
-    card.dataset.sid = d.sprintId;
-    const name = (d.sprintName || d.sprintId || '?').slice(0, 28);
-    const ts   = new Date(d.ts || Date.now()).toLocaleTimeString();
-    card.innerHTML = `
-      <div class="sc-row1">
-        <span class="sc-name">${name}</span>
-        <span class="grade-badge gb-B">?</span>
-      </div>
-      <div class="sc-score">--</div>
-      <div class="sc-meta">${d.taskCount || 0} tasks · ${ts}</div>`;
-
-    sprintScroll.querySelectorAll('.sprint-card').forEach(el => el.classList.remove('active'));
-    sprintScroll.prepend(card);
-    sprintTotal.textContent = '(' + sprintScroll.querySelectorAll('.sprint-card').length + ')';
-  }
-
-  // ── Event log ─────────────────────────────────────────────────────────────
-  const LOG_ICON = {
-    tool_call: '🔧', worker_spawned: '⚡', sprint_start: '🔵',
-    sprint_complete: '✅', evaluation_result: '📊', synthesis_complete: '🔗',
-    memory_op: '💾', loop_state: '🔄', system: '🟢', error: '❌',
-  };
-  const LOG_MSG = {
-    tool_call: (d) => d.phase === 'start'
-      ? `→ ${d.toolName}${d.argsSummary ? ' (' + d.argsSummary + ')' : ''}`
-      : `← ${d.toolName} ${d.phase}${d.durationMs ? ' ' + d.durationMs + 'ms' : ''}`,
-    worker_spawned:    (d) => `[${d.specialistId}] ${(d.taskTitle || '').slice(0, 50)}`,
-    sprint_start:      (d) => `${(d.sprintId||'').slice(-14)} · ${d.taskCount} tasks`,
-    sprint_complete:   (d) => `${(d.sprintId||'').slice(-14)} · ${d.dispatchedCount||0}/${d.taskCount} dispatched`,
-    evaluation_result: (d) => `score ${d.overallScore}/100 grade ${d.grade} · ${d.taskCount} tasks`,
-    synthesis_complete:(d) => `${d.totalActions} actions · ${d.conflictCount} conflicts · ${d.specialistCount} specialists`,
-    memory_op:         (d) => `${d.operation||'?'} ${d.key||''}`,
-    system:            (d) => d,
-  };
-
-  function logEvent(type, d) {
-    const msg = typeof LOG_MSG[type] === 'function' ? LOG_MSG[type](d) : JSON.stringify(d).slice(0, 80);
-    addLog(type, LOG_ICON[type] || '◆', type.replace(/_/g,' '), msg);
-  }
-
-  function addLog(type, icon, label, msg) {
-    const el = document.createElement('div');
-    el.className = `log-entry lt-${type}`;
-    const ts = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    el.innerHTML = `
-      <span class="log-icon">${icon}</span>
-      <div class="log-body">
-        <div class="log-type">${label}</div>
-        <div class="log-msg">${typeof msg === 'string' ? msg : JSON.stringify(msg)}</div>
-      </div>
-      <span class="log-ts">${ts}</span>`;
-    logScroll.insertBefore(el, logScroll.firstChild);
-    S.logCount++;
-    if (S.logCount > 250) {
-      const last = logScroll.lastChild;
-      if (last) { last.remove(); S.logCount--; }
-    }
-  }
-
-  // ── Fetch server info ─────────────────────────────────────────────────────
-  fetch('/health').then(r => r.json()).then(d => {
-    if (d.version) { S.version = d.version; versionPill.textContent = 'v' + d.version; }
-    if (d.uptime)  { onPing({ uptime: d.uptime }); }
-  }).catch(() => {});
-
-  // ── Test Results Panel ────────────────────────────────────────────────────
-  const testSummaryEl  = document.getElementById('test-summary');
-  const testFailuresEl = document.getElementById('test-failures');
-
-  function timeAgo(isoStr) {
-    if (!isoStr) return '';
-    const ms = Date.now() - new Date(isoStr).getTime();
-    if (ms < 60000)  return 'just now';
-    if (ms < 3600000) return Math.round(ms / 60000) + 'm ago';
-    if (ms < 86400000) return Math.round(ms / 3600000) + 'h ago';
-    return Math.round(ms / 86400000) + 'd ago';
-  }
-
-  function renderTestResults(d) {
-    if (!d.available) {
-      testSummaryEl.innerHTML = `<span class="test-loading">${d.message || 'No results yet'}</span>`;
-      testFailuresEl.innerHTML = '';
-      return;
-    }
-    const failColor = d.failed > 0 ? 'badge-fail' : 'badge-pass';
-    testSummaryEl.innerHTML = `
-      <div class="test-pass-line">
-        <span class="badge-pass">${d.passed} passed</span> /
-        <span class="${failColor}">${d.failed} failed</span>
-      </div>
-      <div class="test-timestamp">${timeAgo(d.timestamp)} · ${d.passRate}% pass rate</div>`;
-    testFailuresEl.innerHTML = '';
-    if (d.failures && d.failures.length > 0) {
-      for (const f of d.failures) {
-        const el = document.createElement('div');
-        el.className = 'test-fail-item';
-        el.textContent = `✗ ${f.name}`;
-        if (f.error) el.title = f.error;
-        testFailuresEl.appendChild(el);
-      }
-    }
-  }
-
-  function fetchTestResults() {
-    fetch('/api/test-results').then(r => r.json()).then(renderTestResults).catch(() => {
-      testSummaryEl.innerHTML = '<span class="test-loading">Unavailable</span>';
-    });
-  }
-
-  document.getElementById('test-refresh-btn').onclick = fetchTestResults;
-  fetchTestResults();
-  setInterval(fetchTestResults, 60000); // auto-refresh every minute
-
-  // ── Start ─────────────────────────────────────────────────────────────────
-  connect();
+// Init
+fetch('/health').then(r=>r.json()).then(d=>{if(d.version){$('version-pill').textContent='v'+d.version;}if(d.uptime!=null)onPing({uptime:d.uptime,toolCallCount:d.toolCallCount,clientCount:d.sseClients});}).catch(()=>{});
+connect();
+loadSprintHistory();
+loadMcpServers();
 </script>
 </body>
 </html>
