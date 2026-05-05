@@ -54,7 +54,7 @@
     .topbar-mid   { display: flex; align-items: center; gap: 18px; }
     .topbar-right { display: flex; align-items: center; gap: 8px; }
 
-    .logo { font-size: 14px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo { font-size: 14px; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; }
     .logo-hex { color: var(--accent); }
 
     .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
@@ -1283,9 +1283,10 @@ function sendChat() {
   fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,chatId:S.chatId||undefined})})
     .then(r=>r.json()).then(d=>{
       thinkDiv.remove();
+      if(!S.chatId&&d.chatId){S.chatId=d.chatId;loadChatSessions();}
       if(d.backend) updateChatBackendState(d.backend,{degraded:!!d.degraded,code:d.code||null});
       if(d.error)renderChatBubble('assistant','⚠ '+d.error);
-      else{if(!S.chatId){S.chatId=d.chatId;loadChatSessions();}renderChatBubble('assistant',d.reply||'(no reply)',d.ts);}
+      else renderChatBubble('assistant',d.reply||'(no reply)',d.ts);
       if(d.degraded) showToast('Chat backend unavailable — showing degraded reply','error');
       scrollChatBottom();
     }).catch(e=>{thinkDiv.remove();renderChatBubble('assistant','⚠ Network error: '+e.message);scrollChatBottom();})
