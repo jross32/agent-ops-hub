@@ -1672,8 +1672,13 @@ async function _dispatchTool(name, args) {
   switch (name) {
     case 'agent_mode_preflight':
       return agentModePreflight(args);
-    case 'list_local_mcp_servers':
-      return listLocalMcpServers(args);
+    case 'list_local_mcp_servers': {
+      const lmsResult = listLocalMcpServers(args);
+      const lmsServers = lmsResult.servers || [];
+      return { ...lmsResult, status: 'ok', type: 'mcp_servers', total: lmsServers.length,
+        name: 'local_mcp_servers', title: `${lmsServers.length} local MCP server(s)`,
+        message: `Found ${lmsServers.length} MCP server(s) in ${lmsResult.rootPath}` };
+    }
     case 'research_agent_patterns':
       return researchAgentPatterns(args);
     case 'create_execution_runbook':
@@ -1688,14 +1693,31 @@ async function _dispatchTool(name, args) {
       return diffExecutionPlans(args);
     case 'generate_test_scaffold':
       return generateTestScaffold(args);
-    case 'check_server_health':
-      return checkServerHealth(args);
+    case 'check_server_health': {
+      const healthResult = await checkServerHealth(args);
+      const healthTools = healthResult.tools || [];
+      return { ...healthResult, status: healthResult.healthy ? 'ok' : 'error', type: 'server_health',
+        name: healthResult.serverPath || 'unknown', title: `Server Health: ${healthResult.healthy ? 'OK' : 'FAIL'}`,
+        message: healthResult.healthy ? `Server healthy, ${healthResult.toolCount || healthTools.length} tools found.` : (healthResult.error || 'Server unhealthy'),
+        count: healthResult.toolCount || healthTools.length, total: healthResult.toolCount || healthTools.length };
+    }
     case 'compare_mcp_server_tools':
       return compareMcpServerTools(args);
-    case 'scan_tool_coverage':
-      return scanToolCoverage(args);
-    case 'estimate_tool_complexity':
-      return estimateToolComplexity(args);
+    case 'scan_tool_coverage': {
+      const covResult = scanToolCoverage(args);
+      const covTools = covResult.tools || [];
+      return { ...covResult, status: 'ok', type: 'coverage', total: covTools.length,
+        name: covResult.serverPath || 'coverage', title: `Tool Coverage: ${covTools.length} tools`,
+        message: `Scanned ${covResult.analyzed || covTools.length} tools for coverage.` };
+    }
+    case 'estimate_tool_complexity': {
+      const complexResult = estimateToolComplexity(args);
+      const complexTools = complexResult.tools || [];
+      return { ...complexResult, status: 'ok', type: 'analysis', total: complexTools.length,
+        name: complexResult.serverPath || 'complexity', title: `Tool Complexity: ${complexResult.analyzed} tools`,
+        message: `Analyzed ${complexResult.analyzed} tools for complexity in ${complexResult.serverPath}`,
+        count: complexResult.analyzed || complexTools.length };
+    }
     case 'generate_changelog_entry':
       return generateChangelogEntry(args);
     case 'code_quality_gate':
@@ -1708,18 +1730,36 @@ async function _dispatchTool(name, args) {
       return roadmapTracker(args);
     case 'write_release_notes':
       return writeReleaseNotes(args);
-    case 'agent_task_planner':
-      return agentTaskPlanner(args);
+    case 'agent_task_planner': {
+      const planResult = agentTaskPlanner(args);
+      const planSteps = planResult.steps || [];
+      return { ...planResult, status: 'ok', type: 'plan', total: planSteps.length,
+        name: planResult.id || 'plan', title: `Task Plan: ${planResult.task}`,
+        message: `Created ${planSteps.length}-step plan for: ${planResult.task}` };
+    }
     case 'execution_history_summary':
       return executionHistorySummary(args);
-    case 'find_missing_tests':
-      return findMissingTests(args);
+    case 'find_missing_tests': {
+      const fmtResult = findMissingTests(args);
+      const missing = fmtResult.missingTests || [];
+      return { ...fmtResult, status: 'ok', type: 'coverage', total: fmtResult.toolCount || 0,
+        name: fmtResult.serverDir || 'tests', title: `Missing Tests: ${fmtResult.missingCount}/${fmtResult.toolCount}`,
+        message: `${fmtResult.missingCount} of ${fmtResult.toolCount} tools missing tests (${fmtResult.coveragePercent}% coverage)`,
+        count: fmtResult.missingCount || 0,
+        items: missing.slice(0, 5).map(t => ({ name: t, type: 'missing_test', status: 'not_covered' })) };
+    }
     case 'tag_test_results':
       return tagTestResults(args);
     case 'generate_specialist_agent_roster':
       return generateSpecialistAgentRoster(args);
-    case 'plan_specialist_assignments':
-      return planSpecialistAssignments(args);
+    case 'plan_specialist_assignments': {
+      const psaResult = planSpecialistAssignments(args);
+      const psaPods = psaResult.pods || [];
+      return { ...psaResult, status: 'ok', type: 'plan', total: psaResult.podCount || psaPods.length,
+        name: psaResult.goal || 'assignments', title: `Specialist Assignments: ${psaResult.podCount || psaPods.length} pods`,
+        message: `Planned ${psaResult.podCount || psaPods.length} specialist pod(s) for: ${psaResult.goal}`,
+        count: psaResult.podCount || psaPods.length };
+    }
     case 'build_collaboration_schedule':
       return buildCollaborationSchedule(args);
     case 'research_improvement_ideas':
@@ -1748,8 +1788,16 @@ async function _dispatchTool(name, args) {
       return discoverMcpDocsIndex(args);
     case 'draft_skill_pack_manifest':
       return draftSkillPackManifest(args);
-    case 'validate_json_schema':
-      return validateJsonSchema(args);
+    case 'validate_json_schema': {
+      const vjsResult = validateJsonSchema(args);
+      const vjsErrors = vjsResult.errors || [];
+      return { ...vjsResult, type: 'validation',
+        name: vjsResult.schemaType || 'schema', title: `Schema Validation: ${vjsResult.valid ? 'PASS' : 'FAIL'}`,
+        message: vjsResult.summary, count: vjsResult.errorCount || 0, total: vjsResult.errorCount || 0,
+        items: vjsErrors.length > 0
+          ? vjsErrors.slice(0, 5).map(e => ({ name: e.path, value: e.message, type: 'validation_error', status: 'invalid' }))
+          : [{ name: vjsResult.schemaType || 'schema', type: 'schema', status: 'valid', value: `${(vjsResult.requiredFields||[]).length} required fields` }] };
+    }
     case 'drift_detection_check':
       return driftDetectionCheck(args);
     case 'multi_repo_sync_status':
@@ -1758,38 +1806,92 @@ async function _dispatchTool(name, args) {
       return generateChangelog(args);
     case 'regression_root_cause_analysis':
       return regressionRootCauseAnalysis(args);
-    case 'code_complexity_scan':
-      return codeComplexityScan(args);
+    case 'code_complexity_scan': {
+      const ccsResult = codeComplexityScan(args);
+      const ccsFns = ccsResult.functions || [];
+      return { ...ccsResult, status: 'ok', type: 'analysis', total: ccsResult.functionCount || ccsFns.length,
+        name: ccsResult.filePath || 'complexity', title: `Complexity Scan: ${ccsResult.functionCount || ccsFns.length} functions`,
+        message: `Scanned ${ccsResult.totalLines} lines, ${ccsResult.functionCount} functions, max nesting ${ccsResult.maxNestingDepth}`,
+        count: ccsResult.functionCount || ccsFns.length };
+    }
     case 'estimate_refactor_risk':
       return estimateRefactorRisk(args);
-    case 'semantic_tool_search':
-      return semanticToolSearch(args);
+    case 'semantic_tool_search': {
+      const searchResult = semanticToolSearch(args);
+      return { ...searchResult, status: 'ok', type: 'search',
+        name: searchResult.query, title: `Search: "${searchResult.query}"`,
+        message: `Found ${searchResult.matchCount} match(es) out of ${searchResult.totalToolsSearched} tools.`,
+        count: searchResult.matchCount, total: searchResult.totalToolsSearched };
+    }
     case 'tool_dependency_graph':
       return toolDependencyGraph(args);
     case 'compare_server_capabilities':
       return compareServerCapabilities(args);
     case 'auto_remediate_drift':
       return autoRemediateDrift(args);
-    case 'dispatch_specialist_task':
-      return dispatchSpecialistTask(args);
-    case 'run_parallel_specialist_sprint':
-      return runParallelSpecialistSprint(args);
-    case 'evaluate_sprint_output':
-      return evaluateSprintOutput(args);
+    case 'dispatch_specialist_task': {
+      const dstResult = dispatchSpecialistTask(args);
+      const dstStrengths = dstResult.strengths || [];
+      return { ...dstResult, status: 'ok', type: 'task', total: dstStrengths.length,
+        name: dstResult.specialistId || 'specialist', title: `Task: ${dstResult.taskTitle}`,
+        message: `Dispatched to ${dstResult.role} (${dstResult.domain}) with ${Math.round(dstResult.confidence*100)}% confidence`,
+        count: dstStrengths.length };
+    }
+    case 'run_parallel_specialist_sprint': {
+      const rpsResult = runParallelSpecialistSprint(args);
+      const rpsTasks = rpsResult.tasks || rpsResult.dispatchedTasks || [];
+      return { ...rpsResult, status: 'ok', type: 'sprint', total: rpsTasks.length,
+        name: rpsResult.sprintId || 'sprint', title: `Sprint: ${rpsResult.sprintName || rpsResult.sprintId}`,
+        message: `Ran ${rpsTasks.length} specialist task(s) in sprint ${rpsResult.sprintId}`,
+        count: rpsTasks.length };
+    }
+    case 'evaluate_sprint_output': {
+      const esoResult = evaluateSprintOutput(args);
+      const esoTasks = esoResult.perTaskScores || [];
+      return { ...esoResult, status: 'ok', type: 'evaluation', total: esoResult.taskCount || esoTasks.length,
+        name: esoResult.sprintId || 'evaluation', title: `Sprint Evaluation: ${esoResult.grade} (${esoResult.overallScore}%)`,
+        message: esoResult.recommendation || `Sprint scored ${esoResult.overallScore}%.`,
+        count: esoResult.taskCount || esoTasks.length };
+    }
     case 'synthesize_sprint_outputs':
       return synthesizeSprintOutputs(args);
     case 'specialist_work_log':
       return specialistWorkLog(args);
-    case 'get_sprint_quality_trend':
-      return getSprintQualityTrend(args);
-    case 'get_memory':
-      return getMemory(args);
-    case 'set_memory':
-      return setMemory(args);
+    case 'get_sprint_quality_trend': {
+      const sqtResult = getSprintQualityTrend(args);
+      const sqtSpec = sqtResult.specialists || [];
+      return { ...sqtResult, status: 'ok', type: 'trend', total: sqtResult.totalSprints || 0,
+        name: 'sprint_quality_trend', title: `Sprint Quality Trend: ${sqtResult.totalSprints} sprint(s)`,
+        message: `Analyzed ${sqtResult.totalSprints} sprint(s) over ${sqtResult.lookbackDays || 30} days.`,
+        count: sqtResult.totalSprints || 0 };
+    }
+    case 'get_memory': {
+      const memGet = getMemory(args);
+      const memStatus = memGet.found ? 'found' : 'not_found';
+      return { ...memGet, status: memStatus, type: 'memory',
+        name: memGet.key, title: `Memory: ${memGet.key}`,
+        message: memGet.found ? `Found value for key "${memGet.key}".` : `Key "${memGet.key}" not found.`,
+        count: memGet.found ? 1 : 0, total: 1,
+        items: [{ name: memGet.key, value: typeof memGet.value === 'string' ? memGet.value : JSON.stringify(memGet.value), type: 'memory_entry', status: memStatus }] };
+    }
+    case 'set_memory': {
+      const memSet = setMemory(args);
+      return { ...memSet, status: 'ok', type: 'memory',
+        name: memSet.key, title: `Memory Set: ${memSet.key}`,
+        message: `Stored key "${memSet.key}" at ${memSet.storedAt}.`,
+        count: 1, total: 1,
+        items: [{ name: memSet.key, value: typeof memSet.value === 'string' ? memSet.value : JSON.stringify(memSet.value), type: 'memory_entry', status: 'ok' }] };
+    }
     case 'append_memory':
       return appendMemory(args);
-    case 'list_memory_keys':
-      return listMemoryKeys(args);
+    case 'list_memory_keys': {
+      const memKeys = listMemoryKeys(args);
+      const mkKeys = memKeys.keys || [];
+      return { ...memKeys, status: 'ok', type: 'memory', total: memKeys.count,
+        name: 'memory_store', title: `Memory Keys: ${memKeys.count}`,
+        message: `Found ${memKeys.count} key(s) in memory store.`,
+        items: mkKeys.slice(0, 5).map(k => ({ name: k, type: 'memory_key', status: 'found' })) };
+    }
     case 'clear_memory':
       return clearMemory(args);
     case 'adversarial_review':
@@ -1810,8 +1912,14 @@ async function _dispatchTool(name, args) {
       return listLoadedSkillPacks();
     case 'unload_skill_pack':
       return unloadSkillPack(args);
-    case 'list_available_servers':
-      return await listAvailableServers(args);
+    case 'list_available_servers': {
+      const lasResult = await listAvailableServers(args);
+      const lasServers = lasResult.servers || [];
+      return { ...lasResult, status: 'ok', type: 'mcp_servers', total: lasResult.serverCount || lasServers.length,
+        name: 'available_servers', title: `${lasResult.serverCount || lasServers.length} available MCP server(s)`,
+        message: `Found ${lasResult.serverCount || lasServers.length} servers (${lasResult.runningCount || 0} running).`,
+        count: lasResult.serverCount || lasServers.length };
+    }
     case 'delegate_to_server':
       return await delegateToServer(args);
     case 'spawn_child_server':
@@ -1820,8 +1928,13 @@ async function _dispatchTool(name, args) {
       return stopChildServer(args);
     case 'get_tool_metrics':
       return getToolMetrics(args);
-    case 'explain_tool':
-      return explainTool(args);
+    case 'explain_tool': {
+      const explainResult = explainTool(args);
+      const explainParams = explainResult.params || [];
+      return { ...explainResult, status: 'ok', type: 'explanation',
+        title: `Tool: ${explainResult.name}`, message: explainResult.description || 'Tool explanation.',
+        count: explainParams.length, total: explainParams.length };
+    }
     case 'export_tool_catalog':
       return exportToolCatalog(args);
     case 'run_eval_loop':
