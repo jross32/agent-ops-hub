@@ -4084,10 +4084,19 @@ function validateJsonSchema(args) {
 
   validate(schema, data, 'root');
 
+  const valid = errors.length === 0;
+  const schemaType = schema.type || (schema.properties ? 'object' : schema.items ? 'array' : 'unknown');
+  const requiredFields = schema.required || [];
   return {
-    valid: errors.length === 0,
+    valid,
+    status: valid ? 'valid' : 'invalid',
     errorCount: errors.length,
-    errors
+    errors,
+    summary: valid
+      ? `Data matches schema (type: ${schemaType}, ${requiredFields.length} required fields).`
+      : `${errors.length} validation error(s) found in ${schemaType} schema.`,
+    schemaType,
+    requiredFields,
   };
 }
 
@@ -4530,11 +4539,29 @@ Execution checklist:
 - Configure output format as: ${outputFormat}
 - Test output completeness: summary + findings + recommendations + next steps`;
 
-  // Compute domain confidence: keyword overlap between task and specialist
+  // Compute domain confidence: expanded vocabulary matching with semantic synonyms
+  const DOMAIN_VOCAB = {
+    ux:          ['user', 'interface', 'design', 'ui', 'ux', 'interaction', 'usability', 'flow', 'journey', 'wireframe', 'prototype', 'accessibility', 'mobile', 'responsive', 'frontend', 'layout', 'visual', 'form', 'modal', 'component', 'navigation', 'menu', 'button', 'click', 'tab', 'panel'],
+    frontend:    ['frontend', 'browser', 'react', 'vue', 'angular', 'css', 'html', 'javascript', 'typescript', 'spa', 'dom', 'render', 'bundle', 'component', 'web', 'page', 'client', 'style', 'script', 'asset', 'webpack', 'vite', 'responsive', 'breakpoint'],
+    backend:     ['backend', 'server', 'api', 'rest', 'graphql', 'express', 'node', 'service', 'endpoint', 'http', 'route', 'handler', 'middleware', 'request', 'response', 'websocket', 'socket', 'port', 'json', 'cors'],
+    data:        ['data', 'database', 'schema', 'query', 'sql', 'nosql', 'migration', 'etl', 'pipeline', 'index', 'store', 'record', 'table', 'row', 'column', 'aggregate', 'join', 'transaction', 'mongo', 'postgres', 'redis'],
+    security:    ['security', 'auth', 'authentication', 'authorization', 'owasp', 'vulnerability', 'token', 'session', 'csrf', 'xss', 'injection', 'ssl', 'tls', 'certificate', 'secret', 'password', 'credential', 'sanitize', 'validate', 'header', 'cors', 'https', 'oauth', 'jwt', 'cookie'],
+    quality:     ['test', 'testing', 'qa', 'quality', 'bug', 'coverage', 'e2e', 'unit', 'integration', 'regression', 'assertion', 'spec', 'smoke', 'mock', 'fixture', 'playwright', 'jest', 'mocha', 'puppeteer', 'selenium', 'edge', 'case'],
+    ai:          ['ai', 'mcp', 'prompt', 'model', 'llm', 'agent', 'tool', 'inference', 'embedding', 'claude', 'openai', 'anthropic', 'ollama', 'sampling', 'chat', 'completion', 'token', 'context', 'system', 'instruction', 'evaluation', 'benchmark'],
+    platform:    ['platform', 'deploy', 'deployment', 'ci', 'cd', 'devops', 'docker', 'kubernetes', 'pipeline', 'automation', 'monitoring', 'build', 'release', 'script', 'npm', 'package', 'nodemon', 'process', 'pm2', 'container', 'workflow', 'github', 'action'],
+    docs:        ['docs', 'documentation', 'readme', 'guide', 'reference', 'example', 'tutorial', 'markdown', 'comment', 'jsdoc', 'swagger', 'openapi', 'changelog', 'wiki', 'onboarding', 'explain'],
+    operations:  ['operation', 'incident', 'triage', 'runbook', 'oncall', 'alert', 'uptime', 'slo', 'postmortem', 'error', 'crash', 'down', 'outage', 'recover', 'restart', 'log', 'trace'],
+    product:     ['product', 'feature', 'roadmap', 'requirement', 'stakeholder', 'priority', 'backlog', 'milestone', 'sprint', 'user story', 'acceptance', 'value', 'metric', 'kpi', 'growth', 'adoption', 'feedback'],
+    performance: ['performance', 'speed', 'latency', 'throughput', 'optimize', 'slow', 'fast', 'bottleneck', 'profil', 'benchmark', 'memory', 'cpu', 'heap', 'gc', 'load', 'stress', 'concurrent', 'worker', 'cache', 'timeout'],
+  };
+
   const taskText = `${taskTitle || ''} ${taskContext || ''}`.toLowerCase();
-  const domainKeywords = [specialist.domain, ...specialist.strengths].map(s => s.toLowerCase());
-  const matchCount = domainKeywords.filter(kw => taskText.includes(kw)).length;
-  const confidence = Math.min(1, matchCount / Math.max(1, Math.ceil(domainKeywords.length * 0.5)));
+  const domainExpansion = DOMAIN_VOCAB[specialist.domain] || [];
+  const allKeywords = [...new Set([specialist.domain, ...specialist.strengths, ...domainExpansion].map(s => s.toLowerCase()))];
+  const matchCount = allKeywords.filter(kw => taskText.includes(kw)).length;
+  // Floor at 0.1 so no specialist ever returns 0 — always some baseline relevance
+  const rawScore = matchCount / Math.max(1, Math.ceil(allKeywords.length * 0.3));
+  const confidence = Math.max(0.1, Math.min(1, rawScore));
   const confidenceLabel = confidence >= 0.7 ? 'high' : confidence >= 0.4 ? 'medium' : 'low';
 
   return {
